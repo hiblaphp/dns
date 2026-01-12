@@ -13,7 +13,8 @@
         "php": ">=8.3",
         "hiblaphp/event-loop": "dev-main",
         "hiblaphp/promise": "dev-main",
-        "hiblaphp/cache": "dev-main"
+        "hiblaphp/cache": "dev-main",
+        "hiblaphp/stream": "dev-main"
     },
     "require-dev": {
         "pestphp/pest": "^4.0"
