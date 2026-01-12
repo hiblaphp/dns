@@ -1,0 +1,6 @@
+.qodo
+vendor/
+composer.lock
+.vscode/
+.env
+/benchmarks/

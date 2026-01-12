@@ -1,0 +1,41 @@
+{
+    "name": "hiblaphp/dns",
+    "description": "Async DNS resolver for HiblaPHP",
+    "keywords": ["dns", "dns-resolver", "async", "HiblaPHP"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Reymart Calicdan",
+            "email": "reymartcalicdan@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.3",
+        "hiblaphp/event-loop": "dev-main",
+        "hiblaphp/promise": "dev-main",
+        "hiblaphp/cache": "dev-main"
+    },
+    "require-dev": {
+        "pestphp/pest": "^4.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hibla\\Dns\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "vendor/bin/pest"
+    }
+}
