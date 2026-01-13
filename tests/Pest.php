@@ -1,5 +1,9 @@
 <?php
 
+use Hibla\Dns\Enums\RecordClass;
+use Hibla\Dns\Enums\RecordType;
+use Hibla\Dns\Models\Message;
+use Hibla\Dns\Models\Record;
 use Hibla\EventLoop\Loop;
 
 uses()->beforeEach(function () {
@@ -47,21 +51,63 @@ function create_socket_pair(): array
 function retryTest(callable $test, int $maxRetries = 3, int $retryDelayMs = 500): void
 {
     $lastError = null;
-    
+
     for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
         try {
             $test();
             return;
-            
         } catch (Throwable $e) {
             $lastError = $e;
-            
+
             if ($attempt < $maxRetries) {
                 usleep($retryDelayMs * 1000);
                 Loop::reset();
             }
         }
     }
-    
+
     throw $lastError;
+}
+
+function withResolvConf(string $content, callable $testFn): void
+{
+    $file = sys_get_temp_dir() . '/resolv_' . uniqid() . '.conf';
+    file_put_contents($file, $content);
+    try {
+        $testFn($file);
+    } finally {
+        if (file_exists($file)) unlink($file);
+    }
+}
+
+
+function create_message_with_ttls(
+    array $answerTtls = [],
+    array $authorityTtls = [],
+    bool $truncated = false
+): Message {
+    $msg = new Message();
+    $msg->isTruncated = $truncated;
+
+    foreach ($answerTtls as $ttl) {
+        $msg->answers[] = new Record(
+            'example.com',
+            RecordType::A,
+            RecordClass::IN,
+            $ttl,
+            '1.2.3.4'
+        );
+    }
+
+    foreach ($authorityTtls as $ttl) {
+        $msg->authority[] = new Record(
+            'example.com',
+            RecordType::NS,
+            RecordClass::IN,
+            $ttl,
+            'ns1.example.com'
+        );
+    }
+
+    return $msg;
 }
