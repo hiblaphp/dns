@@ -20,8 +20,11 @@ final class TcpStreamHandler
     private array $pending = [];
 
     private string $readBuffer = '';
+
     private const float IDLE_PERIOD = 0.05;
+
     private ?string $idleTimerId = null;
+    
     private bool $closing = false;
 
     /**
@@ -41,6 +44,11 @@ final class TcpStreamHandler
 
     public function send(string $packet, int $transactionId, Promise $promise): void
     {
+        if ($this->closing) {
+            $promise->reject(new QueryFailedException('DNS query failed: Handler is closing'));
+            return;
+        }
+
         if ($this->idleTimerId !== null) {
             Loop::cancelTimer($this->idleTimerId);
             $this->idleTimerId = null;
@@ -61,7 +69,12 @@ final class TcpStreamHandler
 
     public function isEmpty(): bool
     {
-        return empty($this->pending);
+        return $this->pending === [];
+    }
+
+    public function hasPendingQueries(): bool
+    {
+        return $this->pending !== [];
     }
 
     private function onData(string $chunk): void
@@ -117,7 +130,7 @@ final class TcpStreamHandler
 
     private function checkIdle(): void
     {
-        if ($this->idleTimerId === null && empty($this->pending)) {
+        if ($this->idleTimerId === null && $this->pending === []) {
             $this->idleTimerId = Loop::addTimer(self::IDLE_PERIOD, fn() => $this->close(null));
         }
     }
@@ -135,7 +148,7 @@ final class TcpStreamHandler
             $this->idleTimerId = null;
         }
 
-        if ($errorReason !== null && !empty($this->pending)) {
+        if ($errorReason !== null && $this->pending !== []) {
             $exception = new QueryFailedException("DNS query failed: $errorReason");
             foreach ($this->pending as $promise) {
                 $promise->reject($exception);

@@ -20,8 +20,12 @@ use InvalidArgumentException;
 final class UdpTransportExecutor implements ExecutorInterface
 {
     private readonly string $nameserver;
+
     private readonly Parser $parser;
+
     private readonly BinaryDumper $dumper;
+    
+    private const int MAX_UDP_PACKET_SIZE = 512;
 
     /**
      * @param string $nameserver IP address of the nameserver (e.g. "8.8.8.8" or "8.8.8.8:53")
@@ -44,17 +48,21 @@ final class UdpTransportExecutor implements ExecutorInterface
         $this->dumper = new BinaryDumper();
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function query(Query $query): PromiseInterface
     {
         $message = Message::createRequest($query);
         $queryData = $this->dumper->toBinary($message);
 
-        // UDP Packet limit check (512 bytes is the safe standard for UDP DNS)
         if (\strlen($queryData) > 512) {
             return Promise::rejected(new QueryFailedException(
                 \sprintf('DNS query for %s failed: Query too large for UDP transport', $query->name)
             ));
         }
+
+        set_error_handler(fn() => true);
 
         $socket = @stream_socket_client(
             $this->nameserver,
@@ -63,6 +71,8 @@ final class UdpTransportExecutor implements ExecutorInterface
             0,
             STREAM_CLIENT_CONNECT | STREAM_CLIENT_ASYNC_CONNECT
         );
+
+        restore_error_handler();
 
         if ($socket === false) {
             return Promise::rejected(new QueryFailedException(
@@ -96,7 +106,7 @@ final class UdpTransportExecutor implements ExecutorInterface
         $watcherId = Loop::addStreamWatcher(
             $socket,
             function () use ($socket, $promise, $message, $cleanup, $query) {
-                $data = fread($socket, 512);
+                $data = fread($socket, self::MAX_UDP_PACKET_SIZE);
 
                 if ($data === false || $data === '') {
                     return;

@@ -11,6 +11,8 @@ use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
 use Hibla\Dns\Protocols\BinaryDumper;
 use Hibla\Dns\Protocols\Parser;
+use Hibla\EventLoop\Loop;
+use Hibla\EventLoop\ValueObjects\StreamWatcher;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use Hibla\Stream\DuplexResourceStream;
@@ -20,33 +22,36 @@ use Random\Randomizer;
 final class TcpTransportExecutor implements ExecutorInterface
 {
     private readonly string $nameserver;
+
     private readonly Parser $parser;
+
     private readonly BinaryDumper $dumper;
+
     private readonly Randomizer $randomizer;
+
     private ?TcpStreamHandler $handler = null;
+
+    /** @var array<int, array{packet: string, promise: Promise<Message>}> */
+    private array $pendingConnection = [];
+
+    private bool $connecting = false;
     
-    /** @var callable|null */
-    private $socketFactory;
+    private ?string $connectionWatcherId = null;
 
-    /**
-     * @param string $nameserver DNS server address (e.g., "8.8.8.8" or "tcp://8.8.8.8:53")
-     * @param callable|null $socketFactory Optional factory function that returns a socket resource for testing
-     */
-    public function __construct(string $nameserver, ?callable $socketFactory = null)
+    /** @var resource|null */
+    private $connectingSocket = null;
+
+    public function __construct(string $nameserver)
     {
-        $this->socketFactory = $socketFactory;
-        
-        if ($socketFactory === null) {
-            if (!str_contains($nameserver, '://')) {
-                $nameserver = 'tcp://' . $nameserver;
-            } elseif (!str_starts_with($nameserver, 'tcp://')) {
-                throw new InvalidArgumentException('Only tcp:// scheme is supported');
-            }
+        if (!str_contains($nameserver, '://')) {
+            $nameserver = 'tcp://' . $nameserver;
+        } elseif (!str_starts_with($nameserver, 'tcp://')) {
+            throw new InvalidArgumentException('Only tcp:// scheme is supported');
+        }
 
-            $parts = parse_url($nameserver);
-            if (!isset($parts['port'])) {
-                $nameserver .= ':53';
-            }
+        $parts = parse_url($nameserver);
+        if (!isset($parts['port'])) {
+            $nameserver .= ':53';
         }
 
         $this->nameserver = $nameserver;
@@ -55,11 +60,9 @@ final class TcpTransportExecutor implements ExecutorInterface
         $this->randomizer = new Randomizer();
     }
 
-    public function __destruct()
-    {
-        $this->close();
-    }
-
+    /**
+     * {@inheritdoc}
+     */
     public function query(Query $query): PromiseInterface
     {
         $request = Message::createRequest($query);
@@ -77,27 +80,42 @@ final class TcpTransportExecutor implements ExecutorInterface
         // Framing: [Length (2 bytes)] + [Data]
         $packet = pack('n', $length) . $queryData;
 
-        if ($this->handler === null) {
-            try {
-                $this->connect();
-            } catch (QueryFailedException $e) {
-                return Promise::rejected($e);
-            }
-        }
-
         /** @var Promise<Message> $promise */
         $promise = new Promise();
         $id = $request->id;
 
-        // Delegate to the Handler
-        $this->handler->send($packet, $id, $promise);
+        // If handler is ready and not connecting, send immediately
+        if ($this->handler !== null && $this->connecting === false) {
+            $this->handler->send($packet, $id, $promise);
+        } else {
+            // Queue the query FIRST before attempting connection
+            $this->pendingConnection[$id] = [
+                'packet' => $packet,
+                'promise' => $promise,
+            ];
+
+            // Then trigger connection if needed
+            if ($this->handler === null && $this->connecting === false) {
+                $this->connect();
+            }
+        }
 
         $promise->onCancel(function () use ($id) {
-            if ($this->handler) {
+            if (isset($this->pendingConnection[$id])) {
+                unset($this->pendingConnection[$id]);
+            }
+            
+            // If all pending queries are cancelled, cleanup connection attempt
+            if (\count($this->pendingConnection) === 0 && $this->connecting === true) {
+                $this->cleanupConnectionAttempt();
+            }
+            
+            if ($this->handler !== null) {
                 $this->handler->cancel($id);
                 
+                // If handler has no more pending queries, clean it up
                 if ($this->handler->isEmpty()) {
-                    $this->handler->close();
+                    $this->cleanupHandler();
                 }
             }
         });
@@ -105,53 +123,123 @@ final class TcpTransportExecutor implements ExecutorInterface
         return $promise;
     }
 
-    /**
-     * Establishes the TCP connection and initializes the handler.
-     * @throws QueryFailedException
-     */
     private function connect(): void
     {
-        if ($this->socketFactory !== null) {
-            $socket = ($this->socketFactory)();
-            
-            if (!\is_resource($socket)) {
-                throw new QueryFailedException(
-                    'Socket factory must return a valid stream resource'
-                );
-            }
-        } else {
-            $socket = @stream_socket_client(
-                $this->nameserver,
-                $errno,
-                $errstr,
-                0,
-                STREAM_CLIENT_CONNECT | STREAM_CLIENT_ASYNC_CONNECT
+        $this->connecting = true;
+
+        set_error_handler(fn() => true);
+
+        $socket = @stream_socket_client(
+            $this->nameserver,
+            $errno,
+            $errstr,
+            0,
+            STREAM_CLIENT_CONNECT | STREAM_CLIENT_ASYNC_CONNECT
+        );
+
+        restore_error_handler();
+
+        if ($socket === false) {
+            $this->connecting = false;
+            $exception = new QueryFailedException(
+                \sprintf('Unable to connect to DNS server %s: %s', $this->nameserver, $errstr ?: 'Connection failed'),
+                $errno
             );
 
-            if ($socket === false) {
-                throw new QueryFailedException(
-                    \sprintf('Unable to connect to DNS server %s: %s', $this->nameserver, $errstr),
-                    $errno
-                );
-            }
+            $this->rejectAllPending($exception);
+            return;
         }
 
         stream_set_blocking($socket, false);
+        
+        // Store socket reference for cleanup
+        $this->connectingSocket = $socket;
 
+        $this->connectionWatcherId = Loop::addStreamWatcher($socket, function () use ($socket) {
+            $this->handleConnectionReady($socket);
+        }, StreamWatcher::TYPE_WRITE);
+    }
+
+    private function handleConnectionReady($socket): void
+    {
+        // Remove watcher and clear connecting state
+        $this->removeConnectionWatcher();
+        $this->connecting = false;
+        $this->connectingSocket = null;
+
+        // Check if connection succeeded
+        $remoteName = @stream_socket_get_name($socket, true);
+        if ($remoteName === false) {
+            // Connection failed - close socket
+            @fclose($socket);
+
+            $exception = new QueryFailedException(
+                \sprintf(
+                    'Unable to connect to DNS server %s: Connection refused or invalid address',
+                    $this->nameserver
+                )
+            );
+
+            $this->rejectAllPending($exception);
+            return;
+        }
+
+        // Connection successful
         $stream = new DuplexResourceStream($socket);
 
         $this->handler = new TcpStreamHandler(
             $stream,
             $this->parser,
-            fn() => $this->handler = null // Reset property when handler closes
+            function (): void {
+                $this->handler = null;
+            }
         );
+
+        // Send all queued queries
+        foreach ($this->pendingConnection as $id => $pending) {
+            $this->handler->send($pending['packet'], $id, $pending['promise']);
+        }
+        $this->pendingConnection = [];
     }
 
-    public function close(): void
+    private function removeConnectionWatcher(): void
+    {
+        if ($this->connectionWatcherId !== null) {
+            Loop::removeStreamWatcher($this->connectionWatcherId);
+            $this->connectionWatcherId = null;
+        }
+    }
+
+    private function cleanupConnectionAttempt(): void
+    {
+        $this->removeConnectionWatcher();
+        $this->connecting = false;
+        
+        if ($this->connectingSocket !== null) {
+            @fclose($this->connectingSocket);
+            $this->connectingSocket = null;
+        }
+    }
+
+    private function cleanupHandler(): void
     {
         if ($this->handler !== null) {
-            $this->handler->close('Executor closed');
+            $this->handler->close();
             $this->handler = null;
         }
+    }
+
+    private function rejectAllPending(\Throwable $exception): void
+    {
+        foreach ($this->pendingConnection as $pending) {
+            $pending['promise']->reject($exception);
+        }
+        $this->pendingConnection = [];
+    }
+
+    public function __destruct()
+    {
+        $this->cleanupConnectionAttempt();
+        $this->cleanupHandler();
     }
 }

@@ -42,3 +42,26 @@ function create_socket_pair(): array
 
     return $sockets;
 }
+
+
+function retryTest(callable $test, int $maxRetries = 3, int $retryDelayMs = 500): void
+{
+    $lastError = null;
+    
+    for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        try {
+            $test();
+            return;
+            
+        } catch (Throwable $e) {
+            $lastError = $e;
+            
+            if ($attempt < $maxRetries) {
+                usleep($retryDelayMs * 1000);
+                Loop::reset();
+            }
+        }
+    }
+    
+    throw $lastError;
+}
