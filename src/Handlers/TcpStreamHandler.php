@@ -13,7 +13,6 @@ use Hibla\Stream\Interfaces\DuplexStreamInterface;
 
 /**
  * @internal Handles framing (length-prefix) and multiplexing for a TCP DNS connection.
- *           Now simplified by using Hibla\Stream.
  */
 final class TcpStreamHandler
 {
@@ -23,6 +22,7 @@ final class TcpStreamHandler
     private string $readBuffer = '';
     private const float IDLE_PERIOD = 0.05;
     private ?string $idleTimerId = null;
+    private bool $closing = false;
 
     /**
      * @param callable(): void $onClose
@@ -35,6 +35,8 @@ final class TcpStreamHandler
         $this->stream->on('data', $this->onData(...));
         $this->stream->on('error', $this->onError(...));
         $this->stream->on('close', $this->onStreamClose(...));
+        
+        $this->stream->resume();
     }
 
     public function send(string $packet, int $transactionId, Promise $promise): void
@@ -55,6 +57,11 @@ final class TcpStreamHandler
             unset($this->pending[$transactionId]);
             $this->checkIdle();
         }
+    }
+
+    public function isEmpty(): bool
+    {
+        return empty($this->pending);
     }
 
     private function onData(string $chunk): void
@@ -95,7 +102,12 @@ final class TcpStreamHandler
 
     private function onError(\Throwable $e): void
     {
-        $this->close('Stream error: ' . $e->getMessage());
+        $message = $e->getMessage();
+        if (str_contains($message, 'Failed to read') || str_contains($message, 'Failed to write')) {
+            $this->close('Connection closed');
+        } else {
+            $this->close('Stream error: ' . $message);
+        }
     }
 
     private function onStreamClose(): void
@@ -112,12 +124,16 @@ final class TcpStreamHandler
 
     public function close(?string $errorReason = null): void
     {
+        if ($this->closing) {
+            return;
+        }
+        
+        $this->closing = true;
+
         if ($this->idleTimerId !== null) {
             Loop::cancelTimer($this->idleTimerId);
             $this->idleTimerId = null;
         }
-
-        $this->stream->close();
 
         if ($errorReason !== null && !empty($this->pending)) {
             $exception = new QueryFailedException("DNS query failed: $errorReason");
@@ -127,6 +143,10 @@ final class TcpStreamHandler
         }
 
         $this->pending = [];
+        
+        $this->stream->removeAllListeners();
+        $this->stream->close();
+
         ($this->onClose)();
     }
 }
