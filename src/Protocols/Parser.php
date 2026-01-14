@@ -77,7 +77,7 @@ final class Parser
     private function parseQuery(string $data, int $offset): array
     {
         [$name, $offset] = $this->readName($data, $offset);
-        
+
         if (!isset($data[$offset + 3])) throw new InvalidArgumentException('Query too short');
 
         $meta = unpack('ntype/nclass', substr($data, $offset, 4));
@@ -97,35 +97,33 @@ final class Parser
 
         $meta = unpack('ntype/nclass/Nttl/nlength', substr($data, $offset, 10));
         $offset += 10;
-        
+
         $type = RecordType::tryFrom($meta['type']) ?? RecordType::ANY;
         $class = RecordClass::tryFrom($meta['class']) ?? RecordClass::IN;
         $ttl = $meta['ttl'] & 0x7FFFFFFF;
         $length = $meta['length'];
 
         if (!isset($data[$offset + $length - 1]) && $length > 0) {
-             throw new InvalidArgumentException('Record data truncated');
+            throw new InvalidArgumentException('Record data truncated');
         }
 
         $rdataRaw = substr($data, $offset, $length);
+        $rdataOffset = $offset; // Store the starting offset for parsing
         $offset += $length;
 
         $rdata = match ($type) {
             RecordType::A => inet_ntop($rdataRaw),
             RecordType::AAAA => inet_ntop($rdataRaw),
-            RecordType::CNAME, RecordType::NS, RecordType::PTR => $this->readName($data, $offset - $length)[0],
+            RecordType::CNAME, RecordType::NS, RecordType::PTR => $this->readName($data, $rdataOffset)[0],
             RecordType::TXT => $this->parseTxt($rdataRaw),
-            RecordType::MX => $this->parseMx($data, $offset - $length),
+            RecordType::MX => $this->parseMx($data, $rdataOffset),
+            RecordType::SOA => $this->parseSoa($data, $rdataOffset),  // Add this line
             default => $rdataRaw
         };
 
         return [new Record($name, $type, $class, $ttl, $rdata), $offset];
     }
 
-    /**
-     * Reads a domain name, handling compression pointers.
-     * Includes protection against infinite loops.
-     */
     private function readName(string $data, int $offset): array
     {
         $labels = [];
@@ -138,7 +136,7 @@ final class Parser
                 throw new InvalidArgumentException('Packet ended while reading name');
             }
 
-            $len = ord($data[$offset]);
+            $len = \ord($data[$offset]);
 
             // End of name (0 byte)
             if ($len === 0) {
@@ -154,12 +152,12 @@ final class Parser
                 }
 
                 if (!isset($data[$offset + 1])) throw new InvalidArgumentException('Invalid pointer');
-                
+
                 $pointer = (($len & 0x3F) << 8) | ord($data[$offset + 1]);
                 $offset += 2;
-                
+
                 if (!$jumped) $finalOffset = $offset;
-                
+
                 $offset = $pointer;
                 $jumped = true;
                 $jumps++;
@@ -168,16 +166,16 @@ final class Parser
 
             // Normal label (00xxxxxx)
             // Mask out the high bits to be safe, though strict DNS implies this
-            $labelLen = $len & 0x3F; 
-            
+            $labelLen = $len & 0x3F;
+
             $offset++;
             if (!isset($data[$offset + $labelLen - 1])) {
-                 throw new InvalidArgumentException('Label truncated');
+                throw new InvalidArgumentException('Label truncated');
             }
 
             $labels[] = substr($data, $offset, $labelLen);
             $offset += $labelLen;
-            
+
             if (!$jumped) $finalOffset = $offset;
         }
 
@@ -194,7 +192,7 @@ final class Parser
             $i++;
             // Safety check for malformed TXT length
             if ($i + $partLen > $len) {
-                 break; 
+                break;
             }
             $parts[] = substr($data, $i, $partLen);
             $i += $partLen;
@@ -208,5 +206,31 @@ final class Parser
         $priority = unpack('n', substr($data, $offset, 2))[1];
         [$target] = $this->readName($data, $offset + 2);
         return ['priority' => $priority, 'target' => $target];
+    }
+
+    private function parseSoa(string $data, int $offset): array
+    {
+        // Parse MNAME (primary nameserver)
+        [$mname, $offset] = $this->readName($data, $offset);
+
+        // Parse RNAME (responsible party email)
+        [$rname, $offset] = $this->readName($data, $offset);
+
+        // Parse 5 32-bit integers: serial, refresh, retry, expire, minimum
+        if (!isset($data[$offset + 19])) {
+            throw new InvalidArgumentException('SOA record too short');
+        }
+
+        $values = unpack('Nserial/Nrefresh/Nretry/Nexpire/Nminimum', substr($data, $offset, 20));
+
+        return [
+            'mname' => $mname,
+            'rname' => $rname,
+            'serial' => $values['serial'],
+            'refresh' => $values['refresh'],
+            'retry' => $values['retry'],
+            'expire' => $values['expire'],
+            'minimum' => $values['minimum'],
+        ];
     }
 }
