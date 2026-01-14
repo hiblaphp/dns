@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Exceptions\QueryFailedException;
@@ -21,7 +23,8 @@ describe('RetryExecutor', function () {
         $inner->shouldReceive('query')
             ->with($query)
             ->once()
-            ->andReturn(Promise::resolved($msg));
+            ->andReturn(Promise::resolved($msg))
+        ;
 
         $executor = new RetryExecutor($inner, 2);
         $promise = $executor->query($query);
@@ -39,8 +42,9 @@ describe('RetryExecutor', function () {
             ->andReturn(
                 Promise::rejected(new QueryFailedException('Fail 1')),
                 Promise::rejected(new QueryFailedException('Fail 2')),
-                Promise::resolved($msg) 
-            );
+                Promise::resolved($msg)
+            )
+        ;
 
         $executor = new RetryExecutor($inner, 2);
         $promise = $executor->query($query);
@@ -58,7 +62,8 @@ describe('RetryExecutor', function () {
                 Promise::rejected(new QueryFailedException('Fail 2')),
                 Promise::rejected(new QueryFailedException('Fail 3')),
                 Promise::rejected(new QueryFailedException('Fail Final'))
-            );
+            )
+        ;
 
         $executor = new RetryExecutor($inner, 3);
         $promise = $executor->query($query);
@@ -73,14 +78,15 @@ describe('RetryExecutor', function () {
 
     it('does not retry if cancelled during an attempt', function () use ($query) {
         $pendingPromise = new Promise();
-        $pendingPromise->onCancel(function() {
+        $pendingPromise->onCancel(function () {
             // Mock cancellation behavior
         });
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')
-            ->once() 
-            ->andReturn($pendingPromise);
+            ->once()
+            ->andReturn($pendingPromise)
+        ;
 
         $executor = new RetryExecutor($inner, 3);
         $promise = $executor->query($query);
@@ -88,10 +94,10 @@ describe('RetryExecutor', function () {
         $promise->cancel();
 
         $pendingPromise->reject(new QueryFailedException('Aborted'));
-        
+
         try {
             $promise->wait();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             expect($e)->toBeInstanceOf(PromiseCancelledException::class);
         }
     });
@@ -101,7 +107,8 @@ describe('RetryExecutor', function () {
         $inner->shouldReceive('query')
             ->with($query)
             ->once()
-            ->andReturn(Promise::rejected(new QueryFailedException('Immediate failure')));
+            ->andReturn(Promise::rejected(new QueryFailedException('Immediate failure')))
+        ;
 
         $executor = new RetryExecutor($inner, 0);
         $promise = $executor->query($query);
@@ -126,7 +133,8 @@ describe('RetryExecutor', function () {
                 Promise::rejected(new QueryFailedException('Fail 2')),
                 Promise::rejected(new QueryFailedException('Fail 3')),
                 Promise::resolved($msg)
-            );
+            )
+        ;
 
         $executor = new RetryExecutor($inner, 3);
         $promise = $executor->query($query);
@@ -142,10 +150,11 @@ describe('RetryExecutor', function () {
             ->with($query)
             ->times(3)
             ->andReturn(
-                Promise::rejected(new \RuntimeException('Network error')),
-                Promise::rejected(new \InvalidArgumentException('Invalid data')),
+                Promise::rejected(new RuntimeException('Network error')),
+                Promise::rejected(new InvalidArgumentException('Invalid data')),
                 Promise::resolved($msg)
-            );
+            )
+        ;
 
         $executor = new RetryExecutor($inner, 2);
         $promise = $executor->query($query);
@@ -160,9 +169,10 @@ describe('RetryExecutor', function () {
             ->times(3)
             ->andReturn(
                 Promise::rejected(new QueryFailedException('First')),
-                Promise::rejected(new \RuntimeException('Second')),
-                Promise::rejected(new \InvalidArgumentException('Final'))
-            );
+                Promise::rejected(new RuntimeException('Second')),
+                Promise::rejected(new InvalidArgumentException('Final'))
+            )
+        ;
 
         $executor = new RetryExecutor($inner, 2);
         $promise = $executor->query($query);
@@ -170,7 +180,7 @@ describe('RetryExecutor', function () {
         try {
             $promise->wait();
             test()->fail('Should have thrown exception');
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
             expect($e->getMessage())->toBe('Final');
         }
     });
@@ -187,7 +197,8 @@ describe('RetryExecutor', function () {
                 Promise::rejected(new QueryFailedException('Query2 Fail')),
                 Promise::resolved($msg1),
                 Promise::resolved($msg2)
-            );
+            )
+        ;
 
         $executor = new RetryExecutor($inner, 1);
         $promise1 = $executor->query($query);
@@ -201,14 +212,15 @@ describe('RetryExecutor', function () {
         $pendingPromise = new Promise();
         $wasCancelled = false;
 
-        $pendingPromise->onCancel(function() use (&$wasCancelled) {
+        $pendingPromise->onCancel(function () use (&$wasCancelled) {
             $wasCancelled = true;
         });
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')
             ->once()
-            ->andReturn($pendingPromise);
+            ->andReturn($pendingPromise)
+        ;
 
         $executor = new RetryExecutor($inner, 3);
         $promise = $executor->query($query);
@@ -220,18 +232,19 @@ describe('RetryExecutor', function () {
 
     it('cancels during a retry attempt (not first attempt)', function () use ($query) {
         $firstPromise = Promise::rejected(new QueryFailedException('First fail'));
-        
+
         $secondPromise = new Promise();
         $wasCancelled = false;
-        
-        $secondPromise->onCancel(function() use (&$wasCancelled) {
+
+        $secondPromise->onCancel(function () use (&$wasCancelled) {
             $wasCancelled = true;
         });
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')
             ->twice()
-            ->andReturn($firstPromise, $secondPromise);
+            ->andReturn($firstPromise, $secondPromise)
+        ;
 
         $executor = new RetryExecutor($inner, 3);
         $promise = $executor->query($query);
@@ -248,7 +261,8 @@ describe('RetryExecutor', function () {
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')
             ->once()
-            ->andReturn(Promise::resolved($msg));
+            ->andReturn(Promise::resolved($msg))
+        ;
 
         $executor = new RetryExecutor($inner, 1000);
         $promise = $executor->query($query);
@@ -262,7 +276,8 @@ describe('RetryExecutor', function () {
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')
             ->once() // Should only be called once, not retried
-            ->andReturn($pendingPromise);
+            ->andReturn($pendingPromise)
+        ;
 
         $executor = new RetryExecutor($inner, 5);
         $promise = $executor->query($query);
@@ -276,7 +291,7 @@ describe('RetryExecutor', function () {
 
         try {
             $promise->wait();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             expect($e)->toBeInstanceOf(PromiseCancelledException::class);
         }
     });
@@ -288,7 +303,8 @@ describe('RetryExecutor', function () {
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')
             ->once()
-            ->andReturn($asyncPromise);
+            ->andReturn($asyncPromise)
+        ;
 
         $executor = new RetryExecutor($inner, 2);
         $promise = $executor->query($query);
@@ -310,7 +326,8 @@ describe('RetryExecutor', function () {
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')
             ->twice()
-            ->andReturn($asyncFailPromise, $asyncSuccessPromise);
+            ->andReturn($asyncFailPromise, $asyncSuccessPromise)
+        ;
 
         $executor = new RetryExecutor($inner, 2);
         $promise = $executor->query($query);
@@ -332,7 +349,8 @@ describe('RetryExecutor', function () {
             ->andReturn(
                 Promise::rejected(new QueryFailedException('First error with details')),
                 Promise::rejected(new QueryFailedException('Final error with specific message'))
-            );
+            )
+        ;
 
         $executor = new RetryExecutor($inner, 1);
         $promise = $executor->query($query);
@@ -348,7 +366,7 @@ describe('RetryExecutor', function () {
     it('handles queries for different domains independently', function () {
         $query1 = new Query('example.com', RecordType::A, RecordClass::IN);
         $query2 = new Query('google.com', RecordType::A, RecordClass::IN);
-        
+
         $msg1 = new Message();
         $msg2 = new Message();
 
@@ -356,18 +374,20 @@ describe('RetryExecutor', function () {
         $inner->shouldReceive('query')
             ->with($query1)
             ->once()
-            ->andReturn(Promise::resolved($msg1));
-            
+            ->andReturn(Promise::resolved($msg1))
+        ;
+
         $inner->shouldReceive('query')
             ->with($query2)
             ->twice()
             ->andReturn(
                 Promise::rejected(new QueryFailedException('Fail')),
                 Promise::resolved($msg2)
-            );
+            )
+        ;
 
         $executor = new RetryExecutor($inner, 2);
-        
+
         $promise1 = $executor->query($query1);
         $promise2 = $executor->query($query2);
 

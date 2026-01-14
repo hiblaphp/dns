@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Configs\Config;
 
 describe('Config', function () {
     it('parses a standard resolv.conf file', function () {
-        $content = <<<EOT
+        $content = <<<'EOT'
         # Standard configuration
         nameserver 8.8.8.8
         nameserver 8.8.4.4
@@ -17,7 +19,7 @@ describe('Config', function () {
     });
 
     it('ignores comments and invalid lines', function () {
-        $content = <<<EOT
+        $content = <<<'EOT'
         ; comment with semicolon
         # comment with hash
         nameserver 1.1.1.1 # inline comment
@@ -35,7 +37,7 @@ describe('Config', function () {
     });
 
     it('filters out invalid IP addresses', function () {
-        $content = <<<EOT
+        $content = <<<'EOT'
         nameserver 127.0.0.1
         nameserver 256.256.256.256  # Invalid IPv4
         nameserver not-an-ip        # Garbage
@@ -50,7 +52,7 @@ describe('Config', function () {
     });
 
     it('handles IPv6 addresses and strips zone IDs', function () {
-        $content = <<<EOT
+        $content = <<<'EOT'
         nameserver 2001:4860:4860::8888
         nameserver fe80::1%lo0
         nameserver fe80::2%eth0
@@ -61,14 +63,15 @@ describe('Config', function () {
             expect($config->nameservers)->toBe([
                 '2001:4860:4860::8888',
                 'fe80::1',
-                'fe80::2'
+                'fe80::2',
             ]);
         });
     });
 
     it('throws exception if file does not exist', function () {
-        expect(fn() => Config::loadResolvConfBlocking('/tmp/non_existent_' . uniqid()))
-            ->toThrow(RuntimeException::class);
+        expect(fn () => Config::loadResolvConfBlocking('/tmp/non_existent_'.uniqid()))
+            ->toThrow(RuntimeException::class)
+        ;
     });
 
     it('returns empty config if loading default system config fails or finds nothing', function () {
@@ -94,7 +97,7 @@ describe('Config', function () {
         });
 
         it('handles file with only comments', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
             # Comment line 1
             ; Comment line 2
             # Another comment
@@ -107,7 +110,7 @@ describe('Config', function () {
         });
 
         it('handles nameserver directive without IP', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
             nameserver
             nameserver   
             nameserver 8.8.8.8
@@ -136,7 +139,7 @@ describe('Config', function () {
         });
 
         it('handles IPv6 addresses with multiple zone ID formats', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
             nameserver fe80::1%lo0
             nameserver fe80::2%eth0
             nameserver fe80::3%wlan0
@@ -149,13 +152,13 @@ describe('Config', function () {
                     'fe80::1',
                     'fe80::2',
                     'fe80::3',
-                    'fe80::4'
+                    'fe80::4',
                 ]);
             });
         });
 
         it('handles IPv6 loopback addresses', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
               nameserver ::1
               nameserver 0000:0000:0000:0000:0000:0000:0000:0001
               nameserver 1.1.1.1
@@ -168,7 +171,7 @@ describe('Config', function () {
         });
 
         it('handles mixed case nameserver directive', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
             NameServer 8.8.8.8
             NAMESERVER 1.1.1.1
             nameserver 9.9.9.9
@@ -181,7 +184,7 @@ describe('Config', function () {
         });
 
         it('handles IP addresses with leading zeros', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
             nameserver 008.008.008.008
             nameserver 192.168.001.001
             EOT;
@@ -194,7 +197,7 @@ describe('Config', function () {
         });
 
         it('handles maximum valid IPv4 addresses', function () {
-            $content = "nameserver 255.255.255.255";
+            $content = 'nameserver 255.255.255.255';
             withResolvConf($content, function ($file) {
                 $config = Config::loadResolvConfBlocking($file);
                 expect($config->nameservers)->toBe(['255.255.255.255']);
@@ -202,7 +205,7 @@ describe('Config', function () {
         });
 
         it('handles private IP ranges', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
             nameserver 10.0.0.1
             nameserver 172.16.0.1
             nameserver 192.168.1.1
@@ -215,7 +218,7 @@ describe('Config', function () {
         });
 
         it('handles duplicate nameserver entries', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
             nameserver 8.8.8.8
             nameserver 1.1.1.1
             nameserver 8.8.8.8
@@ -256,7 +259,7 @@ describe('Config', function () {
         });
 
         it('handles file with no trailing newline', function () {
-            $content = "nameserver 8.8.8.8";
+            $content = 'nameserver 8.8.8.8';
             withResolvConf($content, function ($file) {
                 $config = Config::loadResolvConfBlocking($file);
                 expect($config->nameservers)->toBe(['8.8.8.8']);
@@ -264,7 +267,7 @@ describe('Config', function () {
         });
 
         it('handles nameserver with extra text after IP', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
             nameserver 8.8.8.8 extra text here
             nameserver 1.1.1.1 # comment
             EOT;
@@ -276,7 +279,7 @@ describe('Config', function () {
         });
 
         it('rejects localhost addresses', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
             nameserver 127.0.0.1
             nameserver ::1
             nameserver 8.8.8.8
@@ -290,7 +293,7 @@ describe('Config', function () {
         });
 
         it('handles IPv6 compressed format variations', function () {
-            $content = <<<EOT
+            $content = <<<'EOT'
             nameserver 2001:db8::1
             nameserver 2001:0db8:0000:0000:0000:0000:0000:0001
             nameserver 2001:db8:0:0:0:0:0:1

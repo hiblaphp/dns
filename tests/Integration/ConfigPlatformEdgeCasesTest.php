@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Configs\Config;
 
 describe('Windows WMIC Edge Cases', function () {
@@ -31,31 +33,35 @@ describe('Windows WMIC Edge Cases', function () {
         $config = Config::loadWmicBlocking();
 
         $ipv4Pattern = '/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/';
-        $ipv4Servers = array_filter($config->nameservers, fn($ns) => preg_match($ipv4Pattern, $ns));
+        $ipv4Servers = array_filter($config->nameservers, fn ($ns) => preg_match($ipv4Pattern, $ns));
 
         foreach ($ipv4Servers as $ns) {
             expect(filter_var($ns, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4))
-                ->not->toBeFalse();
+                ->not->toBeFalse()
+            ;
         }
     })->skip(function () {
         $config = Config::loadWmicBlocking();
         $ipv4Pattern = '/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/';
-        $ipv4Servers = array_filter($config->nameservers, fn($ns) => preg_match($ipv4Pattern, $ns));
+        $ipv4Servers = array_filter($config->nameservers, fn ($ns) => preg_match($ipv4Pattern, $ns));
+
         return empty($ipv4Servers);
     }, 'No IPv4 nameservers configured on this system');
 
     it('validates IPv6 addresses from WMIC if present', function () {
         $config = Config::loadWmicBlocking();
 
-        $ipv6Servers = array_filter($config->nameservers, fn($ns) => str_contains($ns, ':'));
+        $ipv6Servers = array_filter($config->nameservers, fn ($ns) => str_contains($ns, ':'));
 
         foreach ($ipv6Servers as $ns) {
             expect(filter_var($ns, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
-                ->not->toBeFalse();
+                ->not->toBeFalse()
+            ;
         }
     })->skip(function () {
         $config = Config::loadWmicBlocking();
-        $ipv6Servers = array_filter($config->nameservers, fn($ns) => str_contains($ns, ':'));
+        $ipv6Servers = array_filter($config->nameservers, fn ($ns) => str_contains($ns, ':'));
+
         return empty($ipv6Servers);
     }, 'No IPv6 nameservers configured on this system');
 
@@ -88,7 +94,7 @@ describe('Unix resolv.conf Integration Tests', function () {
     });
 
     it('reads from /etc/resolv.conf if it exists', function () {
-        if (!file_exists('/etc/resolv.conf')) {
+        if (! file_exists('/etc/resolv.conf')) {
             $this->markTestSkipped('/etc/resolv.conf not found');
         }
 
@@ -102,7 +108,7 @@ describe('Unix resolv.conf Integration Tests', function () {
     });
 
     it('returns consistent results on multiple reads', function () {
-        if (!file_exists('/etc/resolv.conf')) {
+        if (! file_exists('/etc/resolv.conf')) {
             $this->markTestSkipped('/etc/resolv.conf not found');
         }
 
@@ -112,7 +118,6 @@ describe('Unix resolv.conf Integration Tests', function () {
         expect($config1->nameservers)->toBe($config2->nameservers);
     });
 })->skipOnWindows()->skipOnCI();
-
 
 describe('Platform-Specific Integration Tests', function () {
 

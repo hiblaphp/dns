@@ -16,19 +16,21 @@ use Hibla\Stream\Interfaces\DuplexStreamInterface;
  */
 final class TcpStreamHandler
 {
-    /** @var array<int, Promise<Message>> */
+    /**
+     *  @var array<int, Promise<Message>>
+     */
     private array $pending = [];
 
     private string $readBuffer = '';
 
     private const float IDLE_PERIOD = 0.05;
 
-    private ?string $idleTimerId = null;
-    
     private bool $closing = false;
 
+    private ?string $idleTimerId = null;
+
     /**
-     * @param callable(): void $onClose
+     * @param  callable(): void  $onClose
      */
     public function __construct(
         private readonly DuplexStreamInterface $stream,
@@ -38,14 +40,18 @@ final class TcpStreamHandler
         $this->stream->on('data', $this->onData(...));
         $this->stream->on('error', $this->onError(...));
         $this->stream->on('close', $this->onStreamClose(...));
-        
+
         $this->stream->resume();
     }
 
+    /**
+     * @param Promise<Message> $promise
+     */
     public function send(string $packet, int $transactionId, Promise $promise): void
     {
         if ($this->closing) {
             $promise->reject(new QueryFailedException('DNS query failed: Handler is closing'));
+
             return;
         }
 
@@ -55,7 +61,7 @@ final class TcpStreamHandler
         }
 
         $this->pending[$transactionId] = $promise;
-        
+
         $this->stream->write($packet);
     }
 
@@ -83,6 +89,13 @@ final class TcpStreamHandler
 
         while (\strlen($this->readBuffer) >= 2) {
             $lengthData = unpack('n', substr($this->readBuffer, 0, 2));
+            if ($lengthData === false || ! isset($lengthData[1])) {
+                $this->close('Invalid length prefix in TCP stream');
+
+                return;
+            }
+
+            /** @var int $expectedLength */
             $expectedLength = $lengthData[1];
 
             if (\strlen($this->readBuffer) < $expectedLength + 2) {
@@ -102,6 +115,7 @@ final class TcpStreamHandler
             $response = $this->parser->parseMessage($data);
         } catch (\Throwable $e) {
             $this->close('Invalid message received from DNS server');
+
             return;
         }
 
@@ -131,7 +145,7 @@ final class TcpStreamHandler
     private function checkIdle(): void
     {
         if ($this->idleTimerId === null && $this->pending === []) {
-            $this->idleTimerId = Loop::addTimer(self::IDLE_PERIOD, fn() => $this->close(null));
+            $this->idleTimerId = Loop::addTimer(self::IDLE_PERIOD, fn () => $this->close(null));
         }
     }
 
@@ -140,7 +154,7 @@ final class TcpStreamHandler
         if ($this->closing) {
             return;
         }
-        
+
         $this->closing = true;
 
         if ($this->idleTimerId !== null) {
@@ -156,7 +170,7 @@ final class TcpStreamHandler
         }
 
         $this->pending = [];
-        
+
         $this->stream->removeAllListeners();
         $this->stream->close();
 

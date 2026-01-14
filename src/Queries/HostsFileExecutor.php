@@ -22,6 +22,9 @@ final class HostsFileExecutor implements ExecutorInterface
         private readonly ExecutorInterface $fallback
     ) {}
 
+    /**
+     * @inheritDoc
+     */
     public function query(Query $query): PromiseInterface
     {
         // 1. Handle Forward Lookups (A / AAAA)
@@ -80,7 +83,8 @@ final class HostsFileExecutor implements ExecutorInterface
 
     /**
      * Synthesizes a valid DNS Message object.
-     * @param list<Record> $answers
+     *
+     * @param  list<Record>  $answers
      */
     private function createResponse(Query $query, array $answers): Message
     {
@@ -95,10 +99,6 @@ final class HostsFileExecutor implements ExecutorInterface
         return $message;
     }
 
-    /**
-     * Parses IP from .arpa domains.
-     * e.g., "4.4.8.8.in-addr.arpa" -> "8.8.4.4"
-     */
     private function extractIpFromPtr(string $name): ?string
     {
         if (str_ends_with($name, '.in-addr.arpa')) {
@@ -116,11 +116,13 @@ final class HostsFileExecutor implements ExecutorInterface
             $hexPart = substr($name, 0, -9);
             // Remove dots and reverse
             $hex = strrev(str_replace('.', '', $hexPart));
-            
+
             if (ctype_xdigit($hex) && \strlen($hex) === 32) {
                 // Pack into binary string
                 $bin = pack('H*', $hex);
-                return inet_ntop($bin);
+                $result = inet_ntop($bin);
+
+                return $result !== false ? $result : null;
             }
         }
 

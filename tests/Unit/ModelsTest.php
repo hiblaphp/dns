@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Enums\Opcode;
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
@@ -12,7 +14,7 @@ describe('Models and Enums', function () {
 
     test('Query model string representation', function () {
         $query = new Query('google.com', RecordType::A, RecordClass::IN);
-        
+
         expect((string) $query)->toBe('Query(google.com: A IN)');
         expect($query->name)->toBe('google.com');
         expect($query->type)->toBe(RecordType::A);
@@ -47,7 +49,7 @@ describe('Models and Enums', function () {
 
         expect($message->questions)->toHaveCount(1);
         expect($message->questions[0])->toBe($query);
-        expect($message->recursionDesired)->toBeTrue(); 
+        expect($message->recursionDesired)->toBeTrue();
         expect($message->isResponse)->toBeFalse();
     });
 
@@ -55,9 +57,9 @@ describe('Models and Enums', function () {
         expect(RecordType::A->value)->toBe(1);
         expect(RecordType::AAAA->value)->toBe(28);
         expect(RecordType::MX->value)->toBe(15);
-        
+
         expect(RecordClass::IN->value)->toBe(1);
-        
+
         expect(ResponseCode::OK->value)->toBe(0);
         expect(ResponseCode::NAME_ERROR->value)->toBe(3);
     });

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Enums\Opcode;
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;

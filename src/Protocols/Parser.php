@@ -13,12 +13,15 @@ use Hibla\Dns\Models\Query;
 use Hibla\Dns\Models\Record;
 use InvalidArgumentException;
 
+/**
+ * @internal
+ */
 final class Parser
 {
     public function parseMessage(string $data): Message
     {
         // Header is 12 bytes
-        if (!isset($data[11])) {
+        if (! isset($data[11])) {
             throw new InvalidArgumentException('Message too short');
         }
 
@@ -29,15 +32,15 @@ final class Parser
         }
 
         $message = new Message();
-        $message->id = $header['id'];
+        $message->id = $this->ensureInt($header['id']);
 
-        $flags = $header['flags'];
-        $message->isResponse = ($flags >> 15) & 1 ? true : false;
+        $flags = $this->ensureInt($header['flags']);
+        $message->isResponse = (($flags >> 15) & 1) === 1;
         $message->opcode = Opcode::tryFrom(($flags >> 11) & 0xF) ?? Opcode::QUERY;
-        $message->isAuthoritative = ($flags >> 10) & 1 ? true : false;
-        $message->isTruncated = ($flags >> 9) & 1 ? true : false;
-        $message->recursionDesired = ($flags >> 8) & 1 ? true : false;
-        $message->recursionAvailable = ($flags >> 7) & 1 ? true : false;
+        $message->isAuthoritative = (($flags >> 10) & 1) === 1;
+        $message->isTruncated = (($flags >> 9) & 1) === 1;
+        $message->recursionDesired = (($flags >> 8) & 1) === 1;
+        $message->recursionAvailable = (($flags >> 7) & 1) === 1;
         $message->responseCode = ResponseCode::tryFrom($flags & 0xF) ?? ResponseCode::OK;
 
         $offset = 12;
@@ -74,36 +77,54 @@ final class Parser
         return $message;
     }
 
+    /**
+     * @return array{0: Query, 1: int}
+     */
     private function parseQuery(string $data, int $offset): array
     {
         [$name, $offset] = $this->readName($data, $offset);
 
-        if (!isset($data[$offset + 3])) throw new InvalidArgumentException('Query too short');
+        if (! isset($data[$offset + 3])) {
+            throw new InvalidArgumentException('Query too short');
+        }
 
         $meta = unpack('ntype/nclass', substr($data, $offset, 4));
+        if ($meta === false) {
+            throw new InvalidArgumentException('Invalid query metadata');
+        }
+
         $offset += 4;
 
-        $type = RecordType::tryFrom($meta['type']) ?? RecordType::ANY;
-        $class = RecordClass::tryFrom($meta['class']) ?? RecordClass::IN;
+        $type = RecordType::tryFrom($this->ensureInt($meta['type'])) ?? RecordType::ANY;
+        $class = RecordClass::tryFrom($this->ensureInt($meta['class'])) ?? RecordClass::IN;
 
         return [new Query($name, $type, $class), $offset];
     }
 
+    /**
+     * @return array{0: Record, 1: int}
+     */
     private function parseRecord(string $data, int $offset): array
     {
         [$name, $offset] = $this->readName($data, $offset);
 
-        if (!isset($data[$offset + 9])) throw new InvalidArgumentException('Record header too short');
+        if (! isset($data[$offset + 9])) {
+            throw new InvalidArgumentException('Record header too short');
+        }
 
         $meta = unpack('ntype/nclass/Nttl/nlength', substr($data, $offset, 10));
+        if ($meta === false) {
+            throw new InvalidArgumentException('Invalid record metadata');
+        }
+
         $offset += 10;
 
-        $type = RecordType::tryFrom($meta['type']) ?? RecordType::ANY;
-        $class = RecordClass::tryFrom($meta['class']) ?? RecordClass::IN;
-        $ttl = $meta['ttl'] & 0x7FFFFFFF;
-        $length = $meta['length'];
+        $type = RecordType::tryFrom($this->ensureInt($meta['type'])) ?? RecordType::ANY;
+        $class = RecordClass::tryFrom($this->ensureInt($meta['class'])) ?? RecordClass::IN;
+        $ttl = $this->ensureInt($meta['ttl']) & 0x7FFFFFFF;
+        $length = $this->ensureInt($meta['length']);
 
-        if (!isset($data[$offset + $length - 1]) && $length > 0) {
+        if (! isset($data[$offset + $length - 1]) && $length > 0) {
             throw new InvalidArgumentException('Record data truncated');
         }
 
@@ -112,18 +133,21 @@ final class Parser
         $offset += $length;
 
         $rdata = match ($type) {
-            RecordType::A => inet_ntop($rdataRaw),
-            RecordType::AAAA => inet_ntop($rdataRaw),
+            RecordType::A => $this->parseIpAddress($rdataRaw),
+            RecordType::AAAA => $this->parseIpAddress($rdataRaw),
             RecordType::CNAME, RecordType::NS, RecordType::PTR => $this->readName($data, $rdataOffset)[0],
             RecordType::TXT => $this->parseTxt($rdataRaw),
             RecordType::MX => $this->parseMx($data, $rdataOffset),
-            RecordType::SOA => $this->parseSoa($data, $rdataOffset),  // Add this line
+            RecordType::SOA => $this->parseSoa($data, $rdataOffset),
             default => $rdataRaw
         };
 
         return [new Record($name, $type, $class, $ttl, $rdata), $offset];
     }
 
+    /**
+     * @return array{0: string, 1: int}
+     */
     private function readName(string $data, int $offset): array
     {
         $labels = [];
@@ -132,7 +156,7 @@ final class Parser
         $jumps = 0; // SAFETY: Counter to prevent infinite loops
 
         while (true) {
-            if (!isset($data[$offset])) {
+            if (! isset($data[$offset])) {
                 throw new InvalidArgumentException('Packet ended while reading name');
             }
 
@@ -141,7 +165,10 @@ final class Parser
             // End of name (0 byte)
             if ($len === 0) {
                 $offset++;
-                if (!$jumped) $finalOffset = $offset;
+                if (! $jumped) {
+                    $finalOffset = $offset;
+                }
+
                 break;
             }
 
@@ -151,16 +178,21 @@ final class Parser
                     throw new InvalidArgumentException('Too many compression pointers (possible infinite loop)');
                 }
 
-                if (!isset($data[$offset + 1])) throw new InvalidArgumentException('Invalid pointer');
+                if (! isset($data[$offset + 1])) {
+                    throw new InvalidArgumentException('Invalid pointer');
+                }
 
                 $pointer = (($len & 0x3F) << 8) | ord($data[$offset + 1]);
                 $offset += 2;
 
-                if (!$jumped) $finalOffset = $offset;
+                if (! $jumped) {
+                    $finalOffset = $offset;
+                }
 
                 $offset = $pointer;
                 $jumped = true;
                 $jumps++;
+
                 continue;
             }
 
@@ -169,19 +201,24 @@ final class Parser
             $labelLen = $len & 0x3F;
 
             $offset++;
-            if (!isset($data[$offset + $labelLen - 1])) {
+            if (! isset($data[$offset + $labelLen - 1])) {
                 throw new InvalidArgumentException('Label truncated');
             }
 
             $labels[] = substr($data, $offset, $labelLen);
             $offset += $labelLen;
 
-            if (!$jumped) $finalOffset = $offset;
+            if (! $jumped) {
+                $finalOffset = $offset;
+            }
         }
 
         return [implode('.', $labels), $finalOffset];
     }
 
+    /**
+     * @return list<string>
+     */
     private function parseTxt(string $data): array
     {
         $parts = [];
@@ -197,17 +234,30 @@ final class Parser
             $parts[] = substr($data, $i, $partLen);
             $i += $partLen;
         }
+
         return $parts;
     }
 
+    /**
+     * @return array{priority: int, target: string}
+     */
     private function parseMx(string $data, int $offset): array
     {
         // MX record must be at least 2 bytes (priority) + 1 byte (root name)
-        $priority = unpack('n', substr($data, $offset, 2))[1];
+        $unpacked = unpack('n', substr($data, $offset, 2));
+        if ($unpacked === false) {
+            throw new InvalidArgumentException('Invalid MX priority');
+        }
+
+        $priority = $this->ensureInt($unpacked[1]);
         [$target] = $this->readName($data, $offset + 2);
+
         return ['priority' => $priority, 'target' => $target];
     }
 
+    /**
+     * @return array{mname: string, rname: string, serial: int, refresh: int, retry: int, expire: int, minimum: int}
+     */
     private function parseSoa(string $data, int $offset): array
     {
         // Parse MNAME (primary nameserver)
@@ -217,20 +267,41 @@ final class Parser
         [$rname, $offset] = $this->readName($data, $offset);
 
         // Parse 5 32-bit integers: serial, refresh, retry, expire, minimum
-        if (!isset($data[$offset + 19])) {
+        if (! isset($data[$offset + 19])) {
             throw new InvalidArgumentException('SOA record too short');
         }
 
         $values = unpack('Nserial/Nrefresh/Nretry/Nexpire/Nminimum', substr($data, $offset, 20));
+        if ($values === false) {
+            throw new InvalidArgumentException('Invalid SOA values');
+        }
 
         return [
             'mname' => $mname,
             'rname' => $rname,
-            'serial' => $values['serial'],
-            'refresh' => $values['refresh'],
-            'retry' => $values['retry'],
-            'expire' => $values['expire'],
-            'minimum' => $values['minimum'],
+            'serial' => $this->ensureInt($values['serial']),
+            'refresh' => $this->ensureInt($values['refresh']),
+            'retry' => $this->ensureInt($values['retry']),
+            'expire' => $this->ensureInt($values['expire']),
+            'minimum' => $this->ensureInt($values['minimum']),
         ];
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function ensureInt($value): int
+    {
+        assert(\is_int($value));
+        return $value;
+    }
+
+    private function parseIpAddress(string $binary): string
+    {
+        $result = @inet_ntop($binary);
+        if ($result === false) {
+            throw new InvalidArgumentException('Invalid IP address binary data');
+        }
+        return $result;
     }
 }

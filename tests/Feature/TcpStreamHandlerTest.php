@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
+use Hibla\Dns\Enums\RecordClass;
+use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Exceptions\QueryFailedException;
 use Hibla\Dns\Handlers\TcpStreamHandler;
 use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
-use Hibla\Dns\Enums\RecordType;
-use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Models\Record;
 use Hibla\Dns\Protocols\BinaryDumper;
 use Hibla\Dns\Protocols\Parser;
@@ -30,7 +32,7 @@ describe('TcpStreamHandler', function () {
             if (method_exists($handler, 'close')) {
                 try {
                     $handler->close();
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     // Suppress errors during cleanup
                 }
             }
@@ -41,7 +43,7 @@ describe('TcpStreamHandler', function () {
             if ($resource instanceof DuplexResourceStream) {
                 try {
                     $resource->close();
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     // Suppress errors during cleanup
                 }
             } elseif (is_resource($resource)) {
@@ -60,7 +62,7 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
         $query = new Query('google.com', RecordType::A, RecordClass::IN);
@@ -68,13 +70,15 @@ describe('TcpStreamHandler', function () {
         $message->id = 12345;
         $binary = $dumper->toBinary($message);
 
-        $packet = pack('n', strlen($binary)) . $binary;
+        $packet = pack('n', strlen($binary)).$binary;
         $promise = new Promise();
 
         $received = '';
         $watcherId = Loop::addStreamWatcher($serverSock, function () use ($serverSock, &$received, $binary, &$watcherId) {
             $chunk = fread($serverSock, 1024);
-            if ($chunk === false || $chunk === '') return;
+            if ($chunk === false || $chunk === '') {
+                return;
+            }
 
             $received .= $chunk;
             if (strlen($received) >= strlen($binary) + 2) {
@@ -97,7 +101,7 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
         $promise = new Promise();
@@ -109,17 +113,17 @@ describe('TcpStreamHandler', function () {
         $response->id = 1;
         $response->isResponse = true;
         $binary = $dumper->toBinary($response);
-        $packet = pack('n', strlen($binary)) . $binary;
+        $packet = pack('n', strlen($binary)).$binary;
 
-        $handler->send("dummy", 1, $promise);
+        $handler->send('dummy', 1, $promise);
 
         // Schedule fragmented writes
-        Loop::addTimer(0.01, fn() => fwrite($serverSock, substr($packet, 0, 1)));
-        Loop::addTimer(0.02, fn() => fwrite($serverSock, substr($packet, 1, 5)));
-        Loop::addTimer(0.03, fn() => fwrite($serverSock, substr($packet, 6)));
+        Loop::addTimer(0.01, fn () => fwrite($serverSock, substr($packet, 0, 1)));
+        Loop::addTimer(0.02, fn () => fwrite($serverSock, substr($packet, 1, 5)));
+        Loop::addTimer(0.03, fn () => fwrite($serverSock, substr($packet, 6)));
 
         Loop::addTimer(1.0, function () use ($promise) {
-            if (!$promise->isFulfilled()) {
+            if (! $promise->isFulfilled()) {
                 Loop::stop();
             }
         });
@@ -135,14 +139,14 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
         $p1 = new Promise();
         $p2 = new Promise();
 
-        $handler->send("d1", 10, $p1);
-        $handler->send("d2", 20, $p2);
+        $handler->send('d1', 10, $p1);
+        $handler->send('d2', 20, $p2);
 
         $m1 = new Message();
         $m1->id = 10;
@@ -152,14 +156,14 @@ describe('TcpStreamHandler', function () {
         $m2->id = 20;
         $m2->isResponse = true;
 
-        $packet1 = pack('n', strlen($dumper->toBinary($m1))) . $dumper->toBinary($m1);
-        $packet2 = pack('n', strlen($dumper->toBinary($m2))) . $dumper->toBinary($m2);
+        $packet1 = pack('n', strlen($dumper->toBinary($m1))).$dumper->toBinary($m1);
+        $packet2 = pack('n', strlen($dumper->toBinary($m2))).$dumper->toBinary($m2);
 
-        Loop::addTimer(0.01, fn() => fwrite($serverSock, $packet1 . $packet2));
+        Loop::addTimer(0.01, fn () => fwrite($serverSock, $packet1.$packet2));
 
-        Promise::all([$p1, $p2])->then(fn() => Loop::stop());
+        Promise::all([$p1, $p2])->then(fn () => Loop::stop());
 
-        Loop::addTimer(1.0, fn() => Loop::stop());
+        Loop::addTimer(1.0, fn () => Loop::stop());
 
         Loop::run();
 
@@ -179,21 +183,21 @@ describe('TcpStreamHandler', function () {
         $handlers[] = $handler;
 
         $promise = new Promise();
-        $handler->send("req", 1, $promise);
+        $handler->send('req', 1, $promise);
 
         $promise->catch(function () {
             Loop::stop();
         });
 
-        Loop::addTimer(0.01, fn() => fclose($serverSock));
+        Loop::addTimer(0.01, fn () => fclose($serverSock));
 
-        Loop::addTimer(1.0, fn() => Loop::stop());
+        Loop::addTimer(1.0, fn () => Loop::stop());
 
         Loop::run();
 
         expect($closed)->toBeTrue();
         expect($promise->isRejected())->toBeTrue();
-        expect(fn() => $promise->wait())->toThrow(QueryFailedException::class, 'Connection closed');
+        expect(fn () => $promise->wait())->toThrow(QueryFailedException::class, 'Connection closed');
     });
 
     it('closes on idle timeout', function () use (&$resources, &$handlers, $parser) {
@@ -209,11 +213,11 @@ describe('TcpStreamHandler', function () {
         $handlers[] = $handler;
 
         $p = new Promise();
-        $handler->send("data", 1, $p);
+        $handler->send('data', 1, $p);
 
-        Loop::addTimer(0.01, fn() => $handler->cancel(1));
+        Loop::addTimer(0.01, fn () => $handler->cancel(1));
 
-        Loop::addTimer(1.0, fn() => Loop::stop());
+        Loop::addTimer(1.0, fn () => Loop::stop());
 
         Loop::run();
 
@@ -232,24 +236,24 @@ describe('TcpStreamHandler', function () {
         $handlers[] = $handler;
 
         $p = new Promise();
-        $handler->send("req", 1, $p);
+        $handler->send('req', 1, $p);
 
         $p->catch(function () {
             Loop::stop();
         });
 
         Loop::addTimer(0.01, function () use ($serverSock) {
-            $garbage = pack('n', 10) . "NOT_DNS_PKT";
+            $garbage = pack('n', 10).'NOT_DNS_PKT';
             fwrite($serverSock, $garbage);
         });
 
-        Loop::addTimer(1.0, fn() => Loop::stop());
+        Loop::addTimer(1.0, fn () => Loop::stop());
 
         Loop::run();
 
         expect($closed)->toBeTrue();
         expect($p->isRejected())->toBeTrue();
-        expect(fn() => $p->wait())->toThrow(QueryFailedException::class, 'Invalid message');
+        expect(fn () => $p->wait())->toThrow(QueryFailedException::class, 'Invalid message');
     });
 
     it('handles partial length prefix (only 1 byte arrives)', function () use (&$resources, &$handlers, $dumper, $parser) {
@@ -257,26 +261,25 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
         $promise = new Promise();
-        $promise->then(fn() => Loop::stop());
+        $promise->then(fn () => Loop::stop());
 
         $response = new Message();
         $response->id = 1;
         $response->isResponse = true;
         $binary = $dumper->toBinary($response);
-        $packet = pack('n', strlen($binary)) . $binary;
+        $packet = pack('n', strlen($binary)).$binary;
 
-        $handler->send("dummy", 1, $promise);
+        $handler->send('dummy', 1, $promise);
 
-        // Send only 1 byte of length prefix, then complete later
-        Loop::addTimer(0.01, fn() => fwrite($serverSock, substr($packet, 0, 1)));
-        Loop::addTimer(0.02, fn() => fwrite($serverSock, substr($packet, 1)));
+        Loop::addTimer(0.01, fn () => fwrite($serverSock, substr($packet, 0, 1)));
+        Loop::addTimer(0.02, fn () => fwrite($serverSock, substr($packet, 1)));
 
         Loop::addTimer(1.0, function () use ($promise) {
-            if (!$promise->isFulfilled()) {
+            if (! $promise->isFulfilled()) {
                 Loop::stop();
             }
         });
@@ -292,16 +295,16 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
         $p1 = new Promise();
         $p2 = new Promise();
         $p3 = new Promise();
 
-        $handler->send("d1", 1, $p1);
-        $handler->send("d2", 2, $p2);
-        $handler->send("d3", 3, $p3);
+        $handler->send('d1', 1, $p1);
+        $handler->send('d2', 2, $p2);
+        $handler->send('d3', 3, $p3);
 
         $packets = [];
         foreach ([1, 2, 3] as $id) {
@@ -309,18 +312,17 @@ describe('TcpStreamHandler', function () {
             $m->id = $id;
             $m->isResponse = true;
             $binary = $dumper->toBinary($m);
-            $packets[] = pack('n', strlen($binary)) . $binary;
+            $packets[] = pack('n', strlen($binary)).$binary;
         }
 
-        // Send all packets fragmented and interleaved
-        Loop::addTimer(0.01, fn() => fwrite($serverSock, substr($packets[0], 0, 3)));
-        Loop::addTimer(0.02, fn() => fwrite($serverSock, substr($packets[0], 3) . substr($packets[1], 0, 2)));
-        Loop::addTimer(0.03, fn() => fwrite($serverSock, substr($packets[1], 2) . substr($packets[2], 0, 5)));
-        Loop::addTimer(0.04, fn() => fwrite($serverSock, substr($packets[2], 5)));
+        Loop::addTimer(0.01, fn () => fwrite($serverSock, substr($packets[0], 0, 3)));
+        Loop::addTimer(0.02, fn () => fwrite($serverSock, substr($packets[0], 3).substr($packets[1], 0, 2)));
+        Loop::addTimer(0.03, fn () => fwrite($serverSock, substr($packets[1], 2).substr($packets[2], 0, 5)));
+        Loop::addTimer(0.04, fn () => fwrite($serverSock, substr($packets[2], 5)));
 
-        Promise::all([$p1, $p2, $p3])->then(fn() => Loop::stop());
+        Promise::all([$p1, $p2, $p3])->then(fn () => Loop::stop());
 
-        Loop::addTimer(1.0, fn() => Loop::stop());
+        Loop::addTimer(1.0, fn () => Loop::stop());
 
         Loop::run();
 
@@ -337,33 +339,31 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
         $p1 = new Promise();
-        $handler->send("d1", 10, $p1);
+        $handler->send('d1', 10, $p1);
 
-        // Send response for ID 999 (unknown) and then correct ID 10
         $m1 = new Message();
-        $m1->id = 999; // Unknown ID
+        $m1->id = 999;
         $m1->isResponse = true;
 
         $m2 = new Message();
-        $m2->id = 10; // Correct ID
+        $m2->id = 10;
         $m2->isResponse = true;
 
-        $packet1 = pack('n', strlen($dumper->toBinary($m1))) . $dumper->toBinary($m1);
-        $packet2 = pack('n', strlen($dumper->toBinary($m2))) . $dumper->toBinary($m2);
+        $packet1 = pack('n', strlen($dumper->toBinary($m1))).$dumper->toBinary($m1);
+        $packet2 = pack('n', strlen($dumper->toBinary($m2))).$dumper->toBinary($m2);
 
-        Loop::addTimer(0.01, fn() => fwrite($serverSock, $packet1 . $packet2));
+        Loop::addTimer(0.01, fn () => fwrite($serverSock, $packet1.$packet2));
 
-        $p1->then(fn() => Loop::stop());
+        $p1->then(fn () => Loop::stop());
 
-        Loop::addTimer(1.0, fn() => Loop::stop());
+        Loop::addTimer(1.0, fn () => Loop::stop());
 
         Loop::run();
 
-        // Only p1 should resolve (ID 10), unknown ID 999 is ignored
         expect($p1->isFulfilled())->toBeTrue();
         expect($p1->getValue()->id)->toBe(10);
     });
@@ -373,30 +373,29 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
         $promises = [];
-       
+
         for ($i = 1; $i <= 10; $i++) {
             $promises[$i] = new Promise();
             $handler->send("data$i", $i, $promises[$i]);
         }
 
-        // Respond to all
         Loop::addTimer(0.01, function () use ($serverSock, $dumper) {
             for ($i = 1; $i <= 10; $i++) {
                 $m = new Message();
                 $m->id = $i;
                 $m->isResponse = true;
-                $packet = pack('n', strlen($dumper->toBinary($m))) . $dumper->toBinary($m);
+                $packet = pack('n', strlen($dumper->toBinary($m))).$dumper->toBinary($m);
                 fwrite($serverSock, $packet);
             }
         });
 
-        Promise::all($promises)->then(fn() => Loop::stop());
+        Promise::all($promises)->then(fn () => Loop::stop());
 
-        Loop::addTimer(1.0, fn() => Loop::stop());
+        Loop::addTimer(1.0, fn () => Loop::stop());
 
         Loop::run();
 
@@ -411,14 +410,13 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
-        // Cancel non-existent ID should not throw
         $handler->cancel(999);
         $handler->cancel(1000);
 
-        expect(true)->toBeTrue(); // Just ensure no exception
+        expect(true)->toBeTrue();
     });
 
     it('handles multiple cancels of same transaction', function () use (&$resources, &$handlers, $parser) {
@@ -434,20 +432,18 @@ describe('TcpStreamHandler', function () {
         $handlers[] = $handler;
 
         $p = new Promise();
-        $handler->send("data", 1, $p);
+        $handler->send('data', 1, $p);
 
-        // Cancel same ID multiple times
         Loop::addTimer(0.01, function () use ($handler) {
             $handler->cancel(1);
-            $handler->cancel(1); // Second cancel
-            $handler->cancel(1); // Third cancel
+            $handler->cancel(1);
+            $handler->cancel(1);
         });
 
-        Loop::addTimer(1.0, fn() => Loop::stop());
+        Loop::addTimer(1.0, fn () => Loop::stop());
 
         Loop::run();
 
-        // Should close on idle after cancellation
         expect($closed)->toBeTrue();
     });
 
@@ -456,16 +452,16 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
         $p1 = new Promise();
         $p2 = new Promise();
         $p3 = new Promise();
 
-        $handler->send("d1", 10, $p1);
-        $handler->send("d2", 20, $p2);
-        $handler->send("d3", 30, $p3);
+        $handler->send('d1', 10, $p1);
+        $handler->send('d2', 20, $p2);
+        $handler->send('d3', 30, $p3);
 
         // Send responses in different order: 30, 10, 20
         $messages = [30, 10, 20];
@@ -475,14 +471,14 @@ describe('TcpStreamHandler', function () {
             $m->id = $id;
             $m->isResponse = true;
             $binary = $dumper->toBinary($m);
-            $packets .= pack('n', strlen($binary)) . $binary;
+            $packets .= pack('n', strlen($binary)).$binary;
         }
 
-        Loop::addTimer(0.01, fn() => fwrite($serverSock, $packets));
+        Loop::addTimer(0.01, fn () => fwrite($serverSock, $packets));
 
-        Promise::all([$p1, $p2, $p3])->then(fn() => Loop::stop());
+        Promise::all([$p1, $p2, $p3])->then(fn () => Loop::stop());
 
-        Loop::addTimer(1.0, fn() => Loop::stop());
+        Loop::addTimer(1.0, fn () => Loop::stop());
 
         Loop::run();
 
@@ -499,7 +495,7 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
         $promises = [];
@@ -519,9 +515,9 @@ describe('TcpStreamHandler', function () {
         }
 
         // Close handler while operations pending
-        Loop::addTimer(0.01, fn() => $handler->close('Manual close'));
+        Loop::addTimer(0.01, fn () => $handler->close('Manual close'));
 
-        Loop::addTimer(1.0, fn() => Loop::stop());
+        Loop::addTimer(1.0, fn () => Loop::stop());
 
         Loop::run();
 
@@ -537,11 +533,11 @@ describe('TcpStreamHandler', function () {
         $stream = new DuplexResourceStream($clientSock);
         $resources = [$stream, $serverSock];
 
-        $handler = new TcpStreamHandler($stream, $parser, fn() => null);
+        $handler = new TcpStreamHandler($stream, $parser, fn () => null);
         $handlers[] = $handler;
 
         $promise = new Promise();
-        $promise->then(fn() => Loop::stop());
+        $promise->then(fn () => Loop::stop());
 
         $response = new Message();
         $response->id = 1;
@@ -553,27 +549,27 @@ describe('TcpStreamHandler', function () {
                 type: RecordType::A,
                 class: RecordClass::IN,
                 ttl: 3600,
-                data: '192.168.1.' . ($i % 256)
+                data: '192.168.1.'.($i % 256)
             );
         }
 
         $binary = $dumper->toBinary($response);
-        $packet = pack('n', strlen($binary)) . $binary;
+        $packet = pack('n', strlen($binary)).$binary;
 
-        $handler->send("dummy", 1, $promise);
+        $handler->send('dummy', 1, $promise);
 
         $chunkSize = 512;
         $offset = 0;
         $delay = 0.01;
         while ($offset < strlen($packet)) {
             $chunk = substr($packet, $offset, $chunkSize);
-            Loop::addTimer($delay, fn() => fwrite($serverSock, $chunk));
+            Loop::addTimer($delay, fn () => fwrite($serverSock, $chunk));
             $offset += $chunkSize;
             $delay += 0.01;
         }
 
         Loop::addTimer(2.0, function () use ($promise) {
-            if (!$promise->isFulfilled()) {
+            if (! $promise->isFulfilled()) {
                 Loop::stop();
             }
         });
@@ -597,9 +593,9 @@ describe('TcpStreamHandler', function () {
         $handlers[] = $handler;
 
         $p = new Promise();
-        $handler->send("data", 1, $p);
+        $handler->send('data', 1, $p);
 
-        Loop::addTimer(0.2, fn() => Loop::stop());
+        Loop::addTimer(0.2, fn () => Loop::stop());
 
         Loop::run();
 
@@ -619,7 +615,7 @@ describe('TcpStreamHandler', function () {
         $handlers[] = $handler;
 
         $p1 = new Promise();
-        $handler->send("data1", 1, $p1);
+        $handler->send('data1', 1, $p1);
 
         Loop::addTimer(0.01, function () use ($handler) {
             $handler->cancel(1);
@@ -627,18 +623,17 @@ describe('TcpStreamHandler', function () {
 
         Loop::addTimer(0.02, function () use ($handler) {
             $p2 = new Promise();
-            $handler->send("data2", 2, $p2); 
+            $handler->send('data2', 2, $p2);
         });
 
         Loop::addTimer(0.15, function () use (&$closed) {
-            if (!$closed) {
+            if (! $closed) {
                 Loop::stop();
             }
         });
 
         Loop::run();
 
-        // Should NOT have closed because new send canceled idle timer
         expect($closed)->toBeFalse();
     });
 });

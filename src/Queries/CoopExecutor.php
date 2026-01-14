@@ -14,23 +14,27 @@ final class CoopExecutor implements ExecutorInterface
 {
     /**
      * Map of cache keys to pending operations.
-     * 
+     *
      * Structure:
      * [
      *    'key' => [
-     *        'promise' => PromiseInterface<Message>, 
-     *        'count'   => int                      
+     *        'promise' => PromiseInterface<Message>,
+     *        'count'   => int
      *    ]
      * ]
-     * 
+     *
      * @var array<string, array{promise: PromiseInterface<Message>, count: int}>
      */
     private array $pending = [];
 
     public function __construct(
         private readonly ExecutorInterface $executor
-    ) {}
+    ) {
+    }
 
+    /**
+     * @inheritDoc
+     */
     public function query(Query $query): PromiseInterface
     {
         $key = \sprintf('%s:%d:%d', $query->name, $query->type->value, $query->class->value);
@@ -42,10 +46,10 @@ final class CoopExecutor implements ExecutorInterface
         } else {
             // Start a new network request
             $networkPromise = $this->executor->query($query);
-            
+
             $this->pending[$key] = [
                 'promise' => $networkPromise,
-                'count'   => 1
+                'count' => 1,
             ];
 
             // Cleanup when the network request settles (success or fail)
@@ -65,8 +69,8 @@ final class CoopExecutor implements ExecutorInterface
         $userPromise = new Promise();
 
         $networkPromise->then(
-            fn($response) => $userPromise->resolve($response),
-            fn($error) => $userPromise->reject($error)
+            fn ($response) => $userPromise->resolve($response),
+            fn ($error) => $userPromise->reject($error)
         );
 
         $userPromise->onCancel(function () use ($key) {

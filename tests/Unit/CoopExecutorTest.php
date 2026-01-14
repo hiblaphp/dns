@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Exceptions\QueryFailedException;
@@ -7,9 +9,9 @@ use Hibla\Dns\Interfaces\ExecutorInterface;
 use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
 use Hibla\Dns\Queries\CoopExecutor;
+use Hibla\EventLoop\Loop;
 use Hibla\Promise\Promise;
 use Tests\Helpers\MockExecutor;
-use Hibla\EventLoop\Loop;
 
 describe('CoopExecutor', function () {
     $query = new Query('google.com', RecordType::A, RecordClass::IN);
@@ -19,7 +21,8 @@ describe('CoopExecutor', function () {
         $mock->shouldReceive('query')
             ->once()
             ->with($query)
-            ->andReturn(Promise::resolved(new Message()));
+            ->andReturn(Promise::resolved(new Message()))
+        ;
 
         $executor = new CoopExecutor($mock);
 
@@ -60,8 +63,8 @@ describe('CoopExecutor', function () {
         $p1 = $executor->query($query);
         $p2 = $executor->query($query);
 
-        $p1->catch(fn() => null);
-        $p2->catch(fn() => null);
+        $p1->catch(fn () => null);
+        $p2->catch(fn () => null);
 
         Loop::runOnce();
 
@@ -208,7 +211,7 @@ describe('CoopExecutor', function () {
             expect($p1->isFulfilled())->toBeTrue();
 
             $p1->cancel();
-            expect($p1->isFulfilled())->toBeTrue(); 
+            expect($p1->isFulfilled())->toBeTrue();
         });
 
         it('handles cancellation in middle of multiple listeners', function () {
@@ -244,7 +247,7 @@ describe('CoopExecutor', function () {
             $p2->cancel();
             expect($mock->wasCancelled)->toBeFalse();
 
-            $p3->cancel(); 
+            $p3->cancel();
             expect($mock->wasCancelled)->toBeTrue();
         });
 
@@ -305,10 +308,12 @@ describe('CoopExecutor', function () {
             $mockWrapper = Mockery::mock(ExecutorInterface::class);
             $mockWrapper->shouldReceive('query')
                 ->with($q1)
-                ->andReturn($mock1->query($q1));
+                ->andReturn($mock1->query($q1))
+            ;
             $mockWrapper->shouldReceive('query')
                 ->with($q2)
-                ->andReturn($mock2->query($q2));
+                ->andReturn($mock2->query($q2))
+            ;
 
             $executor = new CoopExecutor($mockWrapper);
 
@@ -336,8 +341,8 @@ describe('CoopExecutor', function () {
 
             $mock->pendingPromise?->reject(new QueryFailedException('Error'));
 
-            $p2->catch(fn() => null);
-            $p3->catch(fn() => null);
+            $p2->catch(fn () => null);
+            $p3->catch(fn () => null);
 
             Loop::runOnce();
 
@@ -356,7 +361,7 @@ describe('CoopExecutor', function () {
             $executor = new CoopExecutor($mock);
 
             $p1 = $executor->query($query);
-            $p1->catch(fn() => null);
+            $p1->catch(fn () => null);
 
             Loop::runOnce();
 
@@ -376,20 +381,22 @@ describe('CoopExecutor', function () {
             $mock = Mockery::mock(ExecutorInterface::class);
             $mock->shouldReceive('query')
                 ->once()
-                ->andReturn(Promise::rejected($error1));
+                ->andReturn(Promise::rejected($error1))
+            ;
 
             $executor = new CoopExecutor($mock);
 
             $p1 = $executor->query($query);
-            $p1->catch(fn() => null);
+            $p1->catch(fn () => null);
             Loop::runOnce();
 
             $mock->shouldReceive('query')
                 ->once()
-                ->andReturn(Promise::rejected($error2));
+                ->andReturn(Promise::rejected($error2))
+            ;
 
             $p2 = $executor->query($query);
-            $p2->catch(fn() => null);
+            $p2->catch(fn () => null);
             Loop::runOnce();
 
             expect($p1->isRejected())->toBeTrue();
@@ -510,8 +517,10 @@ describe('CoopExecutor', function () {
                 ->times(3)
                 ->andReturnUsing(function () use (&$callCount) {
                     $callCount++;
+
                     return (new MockExecutor(shouldHang: true))->query(new Query('x', RecordType::A, RecordClass::IN));
-                });
+                })
+            ;
 
             $executor = new CoopExecutor($mock);
 

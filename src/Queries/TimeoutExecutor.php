@@ -6,12 +6,11 @@ namespace Hibla\Dns\Queries;
 
 use Hibla\Dns\Exceptions\TimeoutException;
 use Hibla\Dns\Interfaces\ExecutorInterface;
-use Hibla\Dns\Models\Query;
 use Hibla\Dns\Models\Message;
+use Hibla\Dns\Models\Query;
 use Hibla\EventLoop\Loop;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
-use Throwable;
 
 final class TimeoutExecutor implements ExecutorInterface
 {
@@ -20,12 +19,16 @@ final class TimeoutExecutor implements ExecutorInterface
         private readonly float $timeout
     ) {}
 
+    /**
+     * @inheritDoc
+     */
     public function query(Query $query): PromiseInterface
     {
         /** @var Promise<Message> $promise */
         $promise = new Promise();
-        
+
         $pendingPromise = $this->executor->query($query);
+        /** @var string|null $timerId */
         $timerId = null;
 
         $cleanup = function () use (&$timerId): void {
@@ -37,8 +40,8 @@ final class TimeoutExecutor implements ExecutorInterface
 
         $timerId = Loop::addTimer($this->timeout, function () use ($promise, $pendingPromise, $cleanup, $query) {
             $cleanup();
-            $pendingPromise->cancel(); 
-            
+            $pendingPromise->cancel();
+
             $promise->reject(new TimeoutException(
                 \sprintf('DNS query for %s timed out after %.2f seconds', $query->name, $this->timeout)
             ));
@@ -49,7 +52,7 @@ final class TimeoutExecutor implements ExecutorInterface
                 $cleanup();
                 $promise->resolve($response);
             },
-            function (Throwable $e) use ($promise, $cleanup) {
+            function (mixed $e) use ($promise, $cleanup) {
                 $cleanup();
                 $promise->reject($e);
             }

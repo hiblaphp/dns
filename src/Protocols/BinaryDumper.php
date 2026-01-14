@@ -9,15 +9,18 @@ use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
 use Hibla\Dns\Models\Record;
 
+/**
+ * @internal
+ */
 final class BinaryDumper
 {
     public function toBinary(Message $message): string
     {
         return $this->headerToBinary($message)
-            . $this->questionsToBinary($message->questions)
-            . $this->recordsToBinary($message->answers)
-            . $this->recordsToBinary($message->authority)
-            . $this->recordsToBinary($message->additional);
+            .$this->questionsToBinary($message->questions)
+            .$this->recordsToBinary($message->answers)
+            .$this->recordsToBinary($message->authority)
+            .$this->recordsToBinary($message->additional);
     }
 
     private function headerToBinary(Message $message): string
@@ -43,16 +46,16 @@ final class BinaryDumper
         $flags = ($flags << 4) | $message->responseCode->value;
 
         $data .= pack('n', $flags);
-        $data .= pack('n', count($message->questions));
-        $data .= pack('n', count($message->answers));
-        $data .= pack('n', count($message->authority));
-        $data .= pack('n', count($message->additional));
+        $data .= pack('n', \count($message->questions));
+        $data .= pack('n', \count($message->answers));
+        $data .= pack('n', \count($message->authority));
+        $data .= pack('n', \count($message->additional));
 
         return $data;
     }
 
     /**
-     * @param list<Query> $questions
+     * @param  list<Query>  $questions
      */
     private function questionsToBinary(array $questions): string
     {
@@ -61,11 +64,12 @@ final class BinaryDumper
             $data .= $this->domainNameToBinary($question->name);
             $data .= pack('nn', $question->type->value, $question->class->value);
         }
+
         return $data;
     }
 
     /**
-     * @param list<Record> $records
+     * @param  list<Record>  $records
      */
     private function recordsToBinary(array $records): string
     {
@@ -73,14 +77,14 @@ final class BinaryDumper
 
         foreach ($records as $record) {
             $binaryData = match ($record->type) {
-                RecordType::A, RecordType::AAAA => (string) @inet_pton((string) $record->data),
-                RecordType::CNAME, RecordType::NS, RecordType::PTR => $this->domainNameToBinary((string) $record->data),
-                RecordType::TXT => $this->textsToBinary((array) $record->data),
-                RecordType::MX => $this->mxToBinary((array) $record->data),
-                RecordType::SRV => $this->srvToBinary((array) $record->data),
-                RecordType::SOA => $this->soaToBinary((array) $record->data),
+                RecordType::A, RecordType::AAAA => (string) @inet_pton($this->ensureString($record->data)),
+                RecordType::CNAME, RecordType::NS, RecordType::PTR => $this->domainNameToBinary($this->ensureString($record->data)),
+                RecordType::TXT => $this->textsToBinary($this->ensureStringArray($record->data)),
+                RecordType::MX => $this->mxToBinary($this->ensureMxData($record->data)),
+                RecordType::SRV => $this->srvToBinary($this->ensureSrvData($record->data)),
+                RecordType::SOA => $this->soaToBinary($this->ensureSoaData($record->data)),
                 // Fallback for unknown types or simple binary data
-                default => (string) $record->data,
+                default => $this->ensureString($record->data),
             };
 
             $data .= $this->domainNameToBinary($record->name);
@@ -103,40 +107,50 @@ final class BinaryDumper
         $data = '';
 
         foreach ($labels as $label) {
-            $data .= \chr(\strlen($label)) . $label;
+            $data .= \chr(\strlen($label)).$label;
         }
 
-        return $data . "\0";
+        return $data."\0";
     }
 
     /**
-     * @param array<string> $texts
+     * @param  array<string>  $texts
      */
     private function textsToBinary(array $texts): string
     {
         $data = '';
         foreach ($texts as $text) {
-            $data .= \chr(\strlen($text)) . $text;
+            $data .= \chr(\strlen($text)).$text;
         }
+
         return $data;
     }
 
+    /**
+     * @param  array{priority: int|string, target: string}  $data
+     */
     private function mxToBinary(array $data): string
     {
-        return pack('n', (int) $data['priority']) . $this->domainNameToBinary((string) $data['target']);
+        return pack('n', (int) $data['priority']).$this->domainNameToBinary($data['target']);
     }
 
+    /**
+     * @param  array{priority: int|string, weight: int|string, port: int|string, target: string}  $data
+     */
     private function srvToBinary(array $data): string
     {
         return pack('nnn', (int) $data['priority'], (int) $data['weight'], (int) $data['port'])
-            . $this->domainNameToBinary((string) $data['target']);
+            .$this->domainNameToBinary($data['target']);
     }
 
+    /**
+     * @param  array{mname: string, rname: string, serial: int|string, refresh: int|string, retry: int|string, expire: int|string, minimum: int|string}  $data
+     */
     private function soaToBinary(array $data): string
     {
-        return $this->domainNameToBinary((string) $data['mname'])
-            . $this->domainNameToBinary((string) $data['rname'])
-            . pack(
+        return $this->domainNameToBinary($data['mname'])
+            .$this->domainNameToBinary($data['rname'])
+            .pack(
                 'NNNNN',
                 (int) $data['serial'],
                 (int) $data['refresh'],
@@ -144,5 +158,66 @@ final class BinaryDumper
                 (int) $data['expire'],
                 (int) $data['minimum']
             );
+    }
+
+    /**
+     * @param  mixed  $value
+     */
+    private function ensureString($value): string
+    {
+        assert(\is_string($value));
+
+        return $value;
+    }
+
+    /**
+     * @param  mixed  $value
+     * @return array<string>
+     */
+    private function ensureStringArray($value): array
+    {
+        assert(is_array($value));
+
+        /** @var array<string> */
+        return $value;
+    }
+
+    /**
+     * @param  mixed  $value
+     * @return array{priority: int|string, target: string}
+     */
+    private function ensureMxData($value): array
+    {
+        assert(\is_array($value));
+        assert(isset($value['priority'], $value['target']));
+
+        /** @var array{priority: int|string, target: string} */
+        return $value;
+    }
+
+    /**
+     * @param  mixed  $value
+     * @return array{priority: int|string, weight: int|string, port: int|string, target: string}
+     */
+    private function ensureSrvData($value): array
+    {
+        assert(\is_array($value));
+        assert(isset($value['priority'], $value['weight'], $value['port'], $value['target']));
+
+        /** @var array{priority: int|string, weight: int|string, port: int|string, target: string} */
+        return $value;
+    }
+
+    /**
+     * @param  mixed  $value
+     * @return array{mname: string, rname: string, serial: int|string, refresh: int|string, retry: int|string, expire: int|string, minimum: int|string}
+     */
+    private function ensureSoaData($value): array
+    {
+        assert(\is_array($value));
+        assert(isset($value['mname'], $value['rname'], $value['serial'], $value['refresh'], $value['retry'], $value['expire'], $value['minimum']));
+
+        /** @var array{mname: string, rname: string, serial: int|string, refresh: int|string, retry: int|string, expire: int|string, minimum: int|string} */
+        return $value;
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Enums\ResponseCode;
@@ -13,7 +15,7 @@ describe('TcpTransportExecutor Integration', function () {
     beforeEach(function () {
         $socket = @fsockopen('tcp://1.1.1.1', 53, $errno, $errstr, 0.5);
 
-        if (!$socket) {
+        if (! $socket) {
             skipTest('No internet connection to 1.1.1.1');
         }
 
@@ -130,8 +132,9 @@ describe('TcpTransportExecutor Integration', function () {
     });
 
     it('validates scheme in constructor', function () {
-        expect(fn() => new TcpTransportExecutor('udp://1.1.1.1'))
-            ->toThrow(InvalidArgumentException::class, 'Only tcp:// scheme is supported');
+        expect(fn () => new TcpTransportExecutor('udp://1.1.1.1'))
+            ->toThrow(InvalidArgumentException::class, 'Only tcp:// scheme is supported')
+        ;
     });
 
     it('automatically adds default DNS port 53', function () {
@@ -168,12 +171,13 @@ describe('TcpTransportExecutor Integration', function () {
         expect($result)->toBeInstanceOf(Message::class);
         expect($result->responseCode)->toBe(ResponseCode::OK);
     })->skip(function () {
-        set_error_handler(fn() => true);
+        set_error_handler(fn () => true);
         $socket = @fsockopen('tcp://[2606:4700:4700::1111]', 53, $errno, $errstr, 0.5);
         restore_error_handler();
 
         if ($socket) {
             fclose($socket);
+
             return false;
         }
 
@@ -267,7 +271,7 @@ describe('TcpTransportExecutor Integration', function () {
 
         expect($promise->isCancelled())->toBeTrue();
 
-        $timeout = Loop::addTimer(0.1, fn() => Loop::stop());
+        $timeout = Loop::addTimer(0.1, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timeout);
     });
@@ -369,14 +373,14 @@ describe('TcpTransportExecutor Integration', function () {
         expect($result)->toBeInstanceOf(Message::class);
         expect($result->responseCode)->toBeIn([
             ResponseCode::NAME_ERROR,
-            ResponseCode::FORMAT_ERROR
+            ResponseCode::FORMAT_ERROR,
         ]);
     });
 
     it('handles very long domain names', function () {
         $executor = new TcpTransportExecutor('1.1.1.1');
         // DNS labels can be max 63 chars, total name max 253 chars
-        $longDomain = str_repeat('a', 63) . '.' . str_repeat('b', 63) . '.' . str_repeat('c', 63) . '.com';
+        $longDomain = str_repeat('a', 63).'.'.str_repeat('b', 63).'.'.str_repeat('c', 63).'.com';
         $query = new Query($longDomain, RecordType::A, RecordClass::IN);
 
         $promise = $executor->query($query);
@@ -550,8 +554,9 @@ describe('TcpTransportExecutor Integration', function () {
     });
 
     it('validates invalid nameserver format', function () {
-        expect(fn() => new TcpTransportExecutor('not a valid address'))
-            ->not->toThrow(InvalidArgumentException::class);
+        expect(fn () => new TcpTransportExecutor('not a valid address'))
+            ->not->toThrow(InvalidArgumentException::class)
+        ;
 
         $executor = new TcpTransportExecutor('not-a-valid-address');
         $query = new Query('google.com', RecordType::A, RecordClass::IN);

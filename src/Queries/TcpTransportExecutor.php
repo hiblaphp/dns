@@ -35,7 +35,7 @@ final class TcpTransportExecutor implements ExecutorInterface
     private array $pendingConnection = [];
 
     private bool $connecting = false;
-    
+
     private ?string $connectionWatcherId = null;
 
     /** @var resource|null */
@@ -43,14 +43,14 @@ final class TcpTransportExecutor implements ExecutorInterface
 
     public function __construct(string $nameserver)
     {
-        if (!str_contains($nameserver, '://')) {
-            $nameserver = 'tcp://' . $nameserver;
-        } elseif (!str_starts_with($nameserver, 'tcp://')) {
+        if (! str_contains($nameserver, '://')) {
+            $nameserver = 'tcp://'.$nameserver;
+        } elseif (! str_starts_with($nameserver, 'tcp://')) {
             throw new InvalidArgumentException('Only tcp:// scheme is supported');
         }
 
         $parts = parse_url($nameserver);
-        if (!isset($parts['port'])) {
+        if (! isset($parts['port'])) {
             $nameserver .= ':53';
         }
 
@@ -78,7 +78,7 @@ final class TcpTransportExecutor implements ExecutorInterface
         }
 
         // Framing: [Length (2 bytes)] + [Data]
-        $packet = pack('n', $length) . $queryData;
+        $packet = pack('n', $length).$queryData;
 
         /** @var Promise<Message> $promise */
         $promise = new Promise();
@@ -104,15 +104,15 @@ final class TcpTransportExecutor implements ExecutorInterface
             if (isset($this->pendingConnection[$id])) {
                 unset($this->pendingConnection[$id]);
             }
-            
+
             // If all pending queries are cancelled, cleanup connection attempt
             if (\count($this->pendingConnection) === 0 && $this->connecting === true) {
                 $this->cleanupConnectionAttempt();
             }
-            
+
             if ($this->handler !== null) {
                 $this->handler->cancel($id);
-                
+
                 // If handler has no more pending queries, clean it up
                 if ($this->handler->isEmpty()) {
                     $this->cleanupHandler();
@@ -127,7 +127,7 @@ final class TcpTransportExecutor implements ExecutorInterface
     {
         $this->connecting = true;
 
-        set_error_handler(fn() => true);
+        set_error_handler(fn () => true);
 
         $socket = @stream_socket_client(
             $this->nameserver,
@@ -141,17 +141,19 @@ final class TcpTransportExecutor implements ExecutorInterface
 
         if ($socket === false) {
             $this->connecting = false;
+            $errorMessage = $errstr !== '' ? $errstr : 'Connection failed';
             $exception = new QueryFailedException(
-                \sprintf('Unable to connect to DNS server %s: %s', $this->nameserver, $errstr ?: 'Connection failed'),
-                $errno
+                \sprintf('Unable to connect to DNS server %s: %s', $this->nameserver, $errorMessage),
+                $errno ?? 0
             );
 
             $this->rejectAllPending($exception);
+
             return;
         }
 
         stream_set_blocking($socket, false);
-        
+
         // Store socket reference for cleanup
         $this->connectingSocket = $socket;
 
@@ -160,6 +162,9 @@ final class TcpTransportExecutor implements ExecutorInterface
         }, StreamWatcher::TYPE_WRITE);
     }
 
+    /**
+     * @param resource $socket
+     */
     private function handleConnectionReady($socket): void
     {
         // Remove watcher and clear connecting state
@@ -181,6 +186,7 @@ final class TcpTransportExecutor implements ExecutorInterface
             );
 
             $this->rejectAllPending($exception);
+
             return;
         }
 
@@ -214,7 +220,7 @@ final class TcpTransportExecutor implements ExecutorInterface
     {
         $this->removeConnectionWatcher();
         $this->connecting = false;
-        
+
         if ($this->connectingSocket !== null) {
             @fclose($this->connectingSocket);
             $this->connectingSocket = null;

@@ -6,11 +6,10 @@ namespace Hibla\Dns\Queries;
 
 use Hibla\Dns\Exceptions\ResponseTruncatedException;
 use Hibla\Dns\Interfaces\ExecutorInterface;
-use Hibla\Dns\Models\Query;
 use Hibla\Dns\Models\Message;
+use Hibla\Dns\Models\Query;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
-use Throwable;
 
 /**
  * Attempts to send a query via UDP. If the response is truncated (TC bit set),
@@ -21,44 +20,56 @@ final class SelectiveTransportExecutor implements ExecutorInterface
     public function __construct(
         private readonly ExecutorInterface $udpExecutor,
         private readonly ExecutorInterface $tcpExecutor
-    ) {}
+    ) {
+    }
 
+    /**
+     * @inheritDoc
+     */
     public function query(Query $query): PromiseInterface
     {
         /** @var Promise<Message> $promise */
         $promise = new Promise();
 
-        $udpPromise = $this->udpExecutor->query($query);
+        $currentOperation = $this->udpExecutor->query($query);
 
-        $udpPromise->then(
-            onFulfilled: fn($response) => $promise->resolve($response),
-            onRejected: function (Throwable $e) use ($query, $promise) {
+        $currentOperation->then(
+            onFulfilled: function ($response) use ($promise) {
+                $promise->resolve($response);
+            },
+            onRejected: function (mixed $e) use ($query, $promise, &$currentOperation) {
                 if ($e instanceof ResponseTruncatedException) {
-                    $this->retryWithTcp($query, $promise);
+                    $currentOperation = $this->retryWithTcp($query, $promise);
                 } else {
                     $promise->reject($e);
                 }
             }
         );
 
-        $promise->onCancel(function () use ($udpPromise) {
-            $udpPromise->cancelChain();
+        $promise->onCancel(function () use (&$currentOperation) {
+            $currentOperation->cancelChain();
         });
 
         return $promise;
     }
 
-    private function retryWithTcp(Query $query, Promise $promise): void
+    /**
+     * @param Promise<Message> $promise
+     * @return PromiseInterface<Message>
+     */
+    private function retryWithTcp(Query $query, Promise $promise): PromiseInterface
     {
         $tcpPromise = $this->tcpExecutor->query($query);
 
         $tcpPromise->then(
-            fn($response) => $promise->resolve($response),
-            fn($error) => $promise->reject($error)
+            function ($response) use ($promise) {
+                $promise->resolve($response);
+            },
+            function ($error) use ($promise) {
+                $promise->reject($error);
+            }
         );
 
-        $promise->onCancel(function () use ($tcpPromise) {
-            $tcpPromise->cancelChain();
-        });
+        return $tcpPromise;
     }
 }

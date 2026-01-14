@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Exceptions\QueryFailedException;
@@ -7,8 +9,8 @@ use Hibla\Dns\Exceptions\ResponseTruncatedException;
 use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
 use Hibla\Dns\Queries\SelectiveTransportExecutor;
-use Tests\Helpers\MockExecutor;
 use Hibla\EventLoop\Loop;
+use Tests\Helpers\MockExecutor;
 
 describe('SelectiveTransportExecutor', function () {
     $query = new Query('google.com', RecordType::A, RecordClass::IN);
@@ -16,7 +18,7 @@ describe('SelectiveTransportExecutor', function () {
 
     it('returns UDP result if UDP succeeds', function () use ($query, $successMessage) {
         $udp = new MockExecutor(resultToReturn: $successMessage);
-        $tcp = new MockExecutor(); 
+        $tcp = new MockExecutor();
 
         $executor = new SelectiveTransportExecutor($udp, $tcp);
         $promise = $executor->query($query);
@@ -51,7 +53,7 @@ describe('SelectiveTransportExecutor', function () {
         $executor = new SelectiveTransportExecutor($udp, $tcp);
         $promise = $executor->query($query);
 
-        $promise->catch(fn() => null);
+        $promise->catch(fn () => null);
 
         Loop::runOnce();
 
@@ -70,7 +72,7 @@ describe('SelectiveTransportExecutor', function () {
         Loop::runOnce(); // TCP fail
 
         expect($promise->isRejected())->toBeTrue();
-        
+
         try {
             $promise->wait();
         } catch (QueryFailedException $e) {
@@ -84,7 +86,7 @@ describe('SelectiveTransportExecutor', function () {
 
         $executor = new SelectiveTransportExecutor($udp, $tcp);
         $promise = $executor->query($query);
-        
+
         $promise->cancel();
 
         Loop::runOnce();
@@ -99,11 +101,11 @@ describe('SelectiveTransportExecutor', function () {
 
         $executor = new SelectiveTransportExecutor($udp, $tcp);
         $promise = $executor->query($query);
-        
-        Loop::runOnce(); 
+
+        Loop::runOnce();
 
         $promise->cancel();
-        
+
         Loop::runOnce();
 
         expect($tcp->wasCancelled)->toBeTrue();

@@ -9,7 +9,6 @@ use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
-use Throwable;
 
 final class FallbackExecutor implements ExecutorInterface
 {
@@ -18,52 +17,49 @@ final class FallbackExecutor implements ExecutorInterface
         private readonly ExecutorInterface $secondary
     ) {}
 
+    /**
+     * @inheritDoc
+     */
     public function query(Query $query): PromiseInterface
     {
         /** @var Promise<Message> $promise */
         $promise = new Promise();
-        
-        /** @var PromiseInterface|null $currentOperation */
+
+        /** @var PromiseInterface<Message>|null $currentOperation */
         $currentOperation = null;
-        $isCancelled = false;
 
         $currentOperation = $this->primary->query($query);
 
         $currentOperation->then(
             onFulfilled: fn($response) => $promise->resolve($response),
-            
-            // Failure -> Try Secondary
-            onRejected: function (Throwable $primaryError) use ($query, $promise, &$currentOperation, &$isCancelled) {
-                if ($isCancelled) {
-                    return;
-                }
 
+            // Failure -> Try Secondary
+            onRejected: function (mixed $primaryError) use ($query, $promise, &$currentOperation) {
                 // 2. Try Secondary
                 $currentOperation = $this->secondary->query($query);
 
                 $currentOperation->then(
                     fn($response) => $promise->resolve($response),
-                    function (Throwable $secondaryError) use ($promise, $primaryError) {
+                    function (mixed $secondaryError) use ($promise, $primaryError) {
                         // Both failed. Combine error messages.
+                        $errorMessage = \sprintf(
+                            '%s. Fallback failed: %s',
+                            $primaryError instanceof \Throwable ? rtrim($primaryError->getMessage(), '.') : 'Primary query failed',
+                            $secondaryError instanceof \Throwable ? $secondaryError->getMessage() : 'Secondary query failed'
+                        );
+                        
                         $promise->reject(new \RuntimeException(
-                            \sprintf(
-                                '%s. Fallback failed: %s', 
-                                rtrim($primaryError->getMessage(), '.'), 
-                                $secondaryError->getMessage()
-                            ),
+                            $errorMessage,
                             0,
-                            $secondaryError
+                            $secondaryError instanceof \Throwable ? $secondaryError : null
                         ));
                     }
                 );
             }
         );
 
-        $promise->onCancel(function () use (&$currentOperation, &$isCancelled) {
-            $isCancelled = true;
-            if ($currentOperation instanceof PromiseInterface) {
-                $currentOperation->cancelChain();
-            }
+        $promise->onCancel(function () use (&$currentOperation) {
+            $currentOperation->cancelChain();
         });
 
         return $promise;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Exceptions\QueryFailedException;
@@ -7,9 +9,9 @@ use Hibla\Dns\Interfaces\ExecutorInterface;
 use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
 use Hibla\Dns\Queries\FallbackExecutor;
+use Hibla\EventLoop\Loop;
 use Hibla\Promise\Promise;
 use Tests\Helpers\MockExecutor;
-use Hibla\EventLoop\Loop;
 
 describe('FallbackExecutor', function () {
     $query = new Query('example.com', RecordType::A, RecordClass::IN);
@@ -26,7 +28,7 @@ describe('FallbackExecutor', function () {
             Loop::runOnce();
 
             expect($promise->isFulfilled())->toBeTrue();
-            expect($secondary->wasCalled)->toBeFalse(); 
+            expect($secondary->wasCalled)->toBeFalse();
         });
 
         it('returns secondary result when primary fails', function () use ($query) {
@@ -56,9 +58,9 @@ describe('FallbackExecutor', function () {
             $executor = new FallbackExecutor($primary, $secondary);
 
             $promise = $executor->query($query);
-            
+
             $capturedError = null;
-            $promise->catch(function($error) use (&$capturedError) {
+            $promise->catch(function ($error) use (&$capturedError) {
                 $capturedError = $error;
             });
 
@@ -93,9 +95,9 @@ describe('FallbackExecutor', function () {
             $executor = new FallbackExecutor($primary, $secondary);
 
             $promise = $executor->query($query);
-            
+
             Loop::runOnce();
-            
+
             $promise->cancel();
 
             expect($secondary->wasCancelled)->toBeTrue();
@@ -111,7 +113,7 @@ describe('FallbackExecutor', function () {
             Loop::runOnce();
 
             expect($promise->isFulfilled())->toBeTrue();
-  
+
             $promise->cancel();
             expect($promise->isFulfilled())->toBeTrue();
         });
@@ -123,8 +125,8 @@ describe('FallbackExecutor', function () {
             $executor = new FallbackExecutor($primary, $secondary);
 
             $promise = $executor->query($query);
-            $promise->catch(fn() => null);
-            
+            $promise->catch(fn () => null);
+
             Loop::run();
 
             expect($promise->isRejected())->toBeTrue();
@@ -142,9 +144,9 @@ describe('FallbackExecutor', function () {
             $executor = new FallbackExecutor($primary, $secondary);
 
             $promise = $executor->query($query);
-            
+
             $capturedError = null;
-            $promise->catch(function($error) use (&$capturedError) {
+            $promise->catch(function ($error) use (&$capturedError) {
                 $capturedError = $error;
             });
 
@@ -160,9 +162,9 @@ describe('FallbackExecutor', function () {
             $executor = new FallbackExecutor($primary, $secondary);
 
             $promise = $executor->query($query);
-            
+
             $capturedError = null;
-            $promise->catch(function($error) use (&$capturedError) {
+            $promise->catch(function ($error) use (&$capturedError) {
                 $capturedError = $error;
             });
 
@@ -181,9 +183,9 @@ describe('FallbackExecutor', function () {
             $executor = new FallbackExecutor($primary, $secondary);
 
             $promise = $executor->query($query);
-            
+
             $capturedError = null;
-            $promise->catch(function($error) use (&$capturedError) {
+            $promise->catch(function ($error) use (&$capturedError) {
                 $capturedError = $error;
             });
 
@@ -193,13 +195,13 @@ describe('FallbackExecutor', function () {
         });
 
         it('handles different exception types', function () use ($query) {
-            $primary = new MockExecutor(errorToThrow: new \Exception('Primary generic error'));
-            $secondary = new MockExecutor(errorToThrow: new \RuntimeException('Secondary runtime error'));
+            $primary = new MockExecutor(errorToThrow: new Exception('Primary generic error'));
+            $secondary = new MockExecutor(errorToThrow: new RuntimeException('Secondary runtime error'));
 
             $executor = new FallbackExecutor($primary, $secondary);
 
             $promise = $executor->query($query);
-            $promise->catch(fn() => null);
+            $promise->catch(fn () => null);
 
             Loop::run();
 
@@ -232,7 +234,7 @@ describe('FallbackExecutor', function () {
             $executor = new FallbackExecutor($primary, $secondary);
 
             $promise = $executor->query($query);
-            
+
             $promise->cancel();
 
             $primary->pendingPromise?->reject(new QueryFailedException('Too late'));
@@ -249,7 +251,7 @@ describe('FallbackExecutor', function () {
             $executor = new FallbackExecutor($primary, $secondary);
 
             $promise = $executor->query($query);
-            
+
             Loop::runOnce();
 
             $promise->cancel();
@@ -292,17 +294,20 @@ describe('FallbackExecutor', function () {
             $primary->shouldReceive('query')
                 ->with($q1)
                 ->once()
-                ->andReturn(Promise::resolved(new Message()));
+                ->andReturn(Promise::resolved(new Message()))
+            ;
 
             $primary->shouldReceive('query')
                 ->with($q2)
                 ->once()
-                ->andReturn(Promise::rejected(new QueryFailedException('Primary failed')));
+                ->andReturn(Promise::rejected(new QueryFailedException('Primary failed')))
+            ;
 
             $secondary->shouldReceive('query')
                 ->with($q2)
                 ->once()
-                ->andReturn(Promise::resolved(new Message()));
+                ->andReturn(Promise::resolved(new Message()))
+            ;
 
             $executor = new FallbackExecutor($primary, $secondary);
 
@@ -350,7 +355,7 @@ describe('FallbackExecutor', function () {
             $promise = $executor->query($query);
 
             $result = null;
-            $promise->then(function($msg) use (&$result) {
+            $promise->then(function ($msg) use (&$result) {
                 $result = $msg;
             });
 
@@ -400,8 +405,8 @@ describe('FallbackExecutor', function () {
             $fallback2 = new FallbackExecutor($fallback1, $third);
 
             $promise = $fallback2->query($query);
-            $promise->catch(fn() => null);
-            
+            $promise->catch(fn () => null);
+
             Loop::run();
 
             expect($promise->isRejected())->toBeTrue();

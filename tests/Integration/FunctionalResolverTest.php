@@ -1,15 +1,16 @@
 <?php
 
-use Hibla\Dns\Configs\Config;
+declare(strict_types=1);
+
+use Hibla\Dns\Dns;
 use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Exceptions\RecordNotFoundException;
-use Hibla\Dns\Resolvers\Factory;
 use Hibla\EventLoop\Loop;
 
 describe('Functional Resolver (Real Network)', function () {
     beforeEach(function () {
         $socket = @fsockopen('udp://8.8.8.8', 53, $errno, $errstr, 0.5);
-        if (!$socket) {
+        if (! $socket) {
             test()->skip('No internet connection to 8.8.8.8');
         }
         fclose($socket);
@@ -21,8 +22,8 @@ describe('Functional Resolver (Real Network)', function () {
         Loop::reset();
     });
 
-    it('resolves google.com A records using the default factory stack', function () {
-        $resolver = (new Factory())->create();
+    it('resolves google.com A records using the default stack', function () {
+        $resolver = Dns::create();
 
         $ip = null;
         $resolver->resolve('google.com')->then(function ($result) use (&$ip) {
@@ -30,10 +31,11 @@ describe('Functional Resolver (Real Network)', function () {
             Loop::stop();
         }, function ($error) {
             Loop::stop();
+
             throw $error;
         });
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -42,7 +44,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('resolves google.com AAAA (IPv6) records', function () {
-        $resolver = (new Factory())->create();
+        $resolver = Dns::create();
 
         $ips = null;
         $resolver->resolveAll('google.com', RecordType::AAAA)->then(
@@ -56,11 +58,11 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
-        if (!empty($ips)) {
+        if (! empty($ips)) {
             expect($ips)->toBeArray();
             expect($ips[0])->toBeString();
             expect(filter_var($ips[0], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))->not->toBeFalse();
@@ -70,7 +72,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('resolves google.com MX records', function () {
-        $resolver = (new Factory())->create();
+        $resolver = Dns::create();
 
         $records = null;
         $resolver->resolveAll('google.com', RecordType::MX)->then(
@@ -80,11 +82,12 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -96,7 +99,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('resolves TXT records', function () {
-        $resolver = (new Factory())->create();
+        $resolver = Dns::create();
 
         $records = null;
         $resolver->resolveAll('google.com', RecordType::TXT)->then(
@@ -106,11 +109,12 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -120,7 +124,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('resolves NS (nameserver) records', function () {
-        $resolver = (new Factory())->create();
+        $resolver = Dns::create();
 
         $records = null;
         $resolver->resolveAll('google.com', RecordType::NS)->then(
@@ -130,11 +134,12 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -145,7 +150,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('resolves CNAME chains (e.g., www.github.com)', function () {
-        $resolver = (new Factory())->create();
+        $resolver = Dns::create();
 
         $ip = null;
         $resolver->resolve('www.github.com')->then(
@@ -155,11 +160,12 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -168,10 +174,11 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('uses caching for subsequent requests', function () {
-        $resolver = (new Factory())
-            ->withConfig(new Config(['8.8.8.8']))
+        $resolver = Dns::new()
+            ->withNameservers('8.8.8.8')
             ->withCache()
-            ->create();
+            ->build()
+        ;
 
         $step1Done = false;
         $step2Done = false;
@@ -202,7 +209,7 @@ describe('Functional Resolver (Real Network)', function () {
             });
         });
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -212,14 +219,15 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('fails gracefully for non-existent domains (NXDOMAIN)', function () {
-        $resolver = (new Factory())
-            ->withConfig(new Config(['8.8.8.8']))
-            ->create();
+        $resolver = Dns::new()
+            ->withNameservers('8.8.8.8')
+            ->build()
+        ;
 
         $error = null;
         $successResult = null;
 
-        $resolver->resolve('non-existent-' . uniqid() . '.invalid')->then(
+        $resolver->resolve('non-existent-'.uniqid().'.invalid')->then(
             function ($result) use (&$successResult) {
                 $successResult = $result;
                 Loop::stop();
@@ -230,7 +238,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(20.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(20.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -240,7 +248,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('handles NODATA responses (domain exists but no A record)', function () {
-        $resolver = (new Factory())->create();
+        $resolver = Dns::create();
 
         $error = null;
         $successResult = null;
@@ -256,7 +264,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(20.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(20.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -264,9 +272,10 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('uses fallback nameserver when primary fails', function () {
-        $resolver = (new Factory())
-            ->withConfig(new Config(['192.0.2.1', '8.8.8.8']))
-            ->create();
+        $resolver = Dns::new()
+            ->withNameservers(['192.0.2.1', '8.8.8.8'])
+            ->build()
+        ;
 
         $ip = null;
         $resolver->resolve('google.com')->then(
@@ -276,11 +285,12 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(20.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(20.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -288,10 +298,11 @@ describe('Functional Resolver (Real Network)', function () {
         expect(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4))->not->toBeFalse();
     });
 
-    it('works with Cloudflare DNS (1.1.1.1)', function () {
-        $resolver = (new Factory())
-            ->withConfig(new Config(['1.1.1.1']))
-            ->create();
+    it('works with Cloudflare Dns (1.1.1.1)', function () {
+        $resolver = Dns::new()
+            ->withNameservers('1.1.1.1')
+            ->build()
+        ;
 
         $ip = null;
         $resolver->resolve('cloudflare.com')->then(
@@ -301,11 +312,12 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -314,9 +326,10 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('handles multiple parallel requests', function () {
-        $resolver = (new Factory())
+        $resolver = Dns::new()
             ->withCache()
-            ->create();
+            ->build()
+        ;
 
         $results = [
             'google' => null,
@@ -347,7 +360,7 @@ describe('Functional Resolver (Real Network)', function () {
             $checkCompletion();
         });
 
-        $timer = Loop::addTimer(10.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(10.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -360,7 +373,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('handles internationalized domain names (IDN)', function () {
-        $resolver = (new Factory())->create();
+        $resolver = Dns::create();
 
         $punycode = idn_to_ascii('münchen.de', IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
 
@@ -376,7 +389,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -384,12 +397,13 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('resolves very long domain names (near 253 char limit)', function () {
-        $resolver = (new Factory())
+        $resolver = Dns::new()
             ->withTimeout(3.0)
             ->withRetries(0)
-            ->create();
+            ->build()
+        ;
 
-        $longDomain = str_repeat('a', 50) . '.' . str_repeat('b', 50) . '.com';
+        $longDomain = str_repeat('a', 50).'.'.str_repeat('b', 50).'.com';
 
         $error = null;
 
@@ -403,38 +417,39 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        Loop::addTimer(5.0, fn() => Loop::stop());
+        Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
 
         expect($error)->not->toBeNull();
-        expect($error)->toBeInstanceOf(\Throwable::class);
+        expect($error)->toBeInstanceOf(Throwable::class);
     });
 
     it('tests timeout executor with non-routable IP', function () {
-        $resolver = (new Factory())
-            ->withConfig(new Config(['192.0.2.1']))
+        $resolver = Dns::new()
+            ->withNameservers('192.0.2.1')
             ->withTimeout(3.0)
             ->withRetries(0)
-            ->create();
+            ->build()
+        ;
 
         $error = null;
 
         $resolver->resolve('google.com')->then(
-            fn($r) => Loop::stop(),
+            fn ($r) => Loop::stop(),
             function ($e) use (&$error) {
                 $error = $e;
                 Loop::stop();
             }
         );
 
-        Loop::addTimer(5.0, fn() => Loop::stop());
+        Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
 
-        expect($error)->toBeInstanceOf(\Hibla\Dns\Exceptions\TimeoutException::class);
+        expect($error)->toBeInstanceOf(Hibla\Dns\Exceptions\TimeoutException::class);
     });
 
     it('resolves SOA records', function () {
-        $resolver = (new Factory())->create();
+        $resolver = Dns::create();
 
         $records = null;
         $resolver->resolveAll('google.com', RecordType::SOA)->then(
@@ -444,11 +459,12 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
@@ -458,7 +474,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('handles hosts file resolution', function () {
-        $resolver = (new Factory())->create();
+        $resolver = Dns::create();
 
         $ip = null;
         $resolver->resolve('localhost')->then(
@@ -468,19 +484,20 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(2.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(2.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
         expect($ip)->toBe('127.0.0.1');
     });
 
-    it('resolves PTR records (reverse DNS)', function () {
-        $resolver = (new Factory())->create();
+    it('resolves PTR records (reverse Dns)', function () {
+        $resolver = Dns::create();
 
         $reverseAddr = '8.8.8.8.in-addr.arpa';
 
@@ -496,11 +513,11 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 
-        if (!empty($records)) {
+        if (! empty($records)) {
             expect($records)->toBeArray();
             expect($records[0])->toBeString();
             expect($records[0])->toContain('google');
@@ -508,8 +525,8 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('maintains cache isolation between resolver instances', function () {
-        $resolver1 = (new Factory())->withCache()->create();
-        $resolver2 = (new Factory())->withCache()->create();
+        $resolver1 = Dns::new()->withCache()->build();
+        $resolver2 = Dns::new()->withCache()->build();
 
         $result1 = null;
         $result2 = null;
@@ -518,16 +535,20 @@ describe('Functional Resolver (Real Network)', function () {
         $resolver1->resolve('google.com')->then(function ($ip) use (&$result1, &$completed) {
             $result1 = $ip;
             $completed++;
-            if ($completed === 2) Loop::stop();
+            if ($completed === 2) {
+                Loop::stop();
+            }
         });
 
         $resolver2->resolve('google.com')->then(function ($ip) use (&$result2, &$completed) {
             $result2 = $ip;
             $completed++;
-            if ($completed === 2) Loop::stop();
+            if ($completed === 2) {
+                Loop::stop();
+            }
         });
 
-        $timer = Loop::addTimer(5.0, fn() => Loop::stop());
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timer);
 

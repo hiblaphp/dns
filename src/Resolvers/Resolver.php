@@ -22,12 +22,14 @@ final class Resolver implements ResolverInterface
 
     public function __construct(
         private readonly ExecutorInterface $executor
-    ) {}
+    ) {
+    }
 
     public function resolve(string $domain): PromiseInterface
     {
         return $this->resolveAll($domain, RecordType::A)
-            ->then(fn(array $ips) => $ips[(new Randomizer())->getInt(0, \count($ips) - 1)]);
+            ->then(fn (array $ips) => $ips[(new Randomizer())->getInt(0, \count($ips) - 1)])
+        ;
     }
 
     public function resolveAll(string $domain, RecordType $type): PromiseInterface
@@ -36,25 +38,27 @@ final class Resolver implements ResolverInterface
 
         return $this->executor->query($query)
             ->then(
-                fn(Message $response) => $this->extractValues($query, $response),
-                fn($error) => throw $error // Properly propagate errors
-            );
+                fn (Message $response) => $this->extractValues($query, $response),
+                fn ($error) => throw $error
+            )
+        ;
     }
 
     /**
      * @return list<mixed>
+     *
      * @throws RecordNotFoundException
      */
     private function extractValues(Query $query, Message $response): array
     {
         if ($response->responseCode !== ResponseCode::OK) {
             $errorMsg = match ($response->responseCode) {
-                ResponseCode::FORMAT_ERROR    => 'Format Error',
-                ResponseCode::SERVER_FAILURE  => 'Server Failure',
-                ResponseCode::NAME_ERROR      => 'Non-Existent Domain / NXDOMAIN',
+                ResponseCode::FORMAT_ERROR => 'Format Error',
+                ResponseCode::SERVER_FAILURE => 'Server Failure',
+                ResponseCode::NAME_ERROR => 'Non-Existent Domain / NXDOMAIN',
                 ResponseCode::NOT_IMPLEMENTED => 'Not Implemented',
-                ResponseCode::REFUSED         => 'Refused',
-                default => 'Unknown error code ' . $response->responseCode->value,
+                ResponseCode::REFUSED => 'Refused',
+                default => 'Unknown error code '.$response->responseCode->value,
             };
 
             throw new RecordNotFoundException(
@@ -75,7 +79,7 @@ final class Resolver implements ResolverInterface
     }
 
     /**
-     * @param list<Record> $answers
+     * @param  list<Record>  $answers
      * @return list<mixed>
      */
     private function findAnswers(array $answers, string $name, RecordType $type, int $depth = 0): array
@@ -88,20 +92,18 @@ final class Resolver implements ResolverInterface
         // 1. Direct match?
         $directMatches = array_filter(
             $answers,
-            fn(Record $r) =>
-            strcasecmp($r->name, $name) === 0 && $r->type === $type
+            fn (Record $r) => strcasecmp($r->name, $name) === 0 && $r->type === $type
         );
 
         if (\count($directMatches) > 0) {
-            return array_values(array_map(fn(Record $r) => $r->data, $directMatches));
+            return array_values(array_map(fn (Record $r) => $r->data, $directMatches));
         }
 
         // 2. CNAME Chaining (only for A, AAAA, and similar record types)
         if ($this->shouldFollowCNAME($type)) {
             $cnameMatches = array_filter(
                 $answers,
-                fn(Record $r) =>
-                strcasecmp($r->name, $name) === 0 && $r->type === RecordType::CNAME
+                fn (Record $r) => strcasecmp($r->name, $name) === 0 && $r->type === RecordType::CNAME
             );
 
             $results = [];

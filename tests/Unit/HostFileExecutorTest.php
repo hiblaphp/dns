@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Configs\HostsFile;
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
@@ -9,7 +11,7 @@ use Hibla\Dns\Queries\HostsFileExecutor;
 use Tests\Helpers\MockExecutor;
 
 describe('HostsFileExecutor', function () {
-    $hostsContent = <<<EOT
+    $hostsContent = <<<'EOT'
     127.0.0.1       localhost
     127.0.0.2       localhost
     ::1             localhost ip6-localhost
@@ -34,8 +36,8 @@ describe('HostsFileExecutor', function () {
 
         $message = $promise->getValue();
         expect($message->answers)->toHaveCount(2);
-        
-        $ips = array_map(fn($r) => $r->data, $message->answers);
+
+        $ips = array_map(fn ($r) => $r->data, $message->answers);
         expect($ips)->toContain('127.0.0.1');
         expect($ips)->toContain('127.0.0.2');
 
@@ -109,7 +111,7 @@ describe('HostsFileExecutor', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        $names = array_map(fn($r) => $r->data, $promise->getValue()->answers);
+        $names = array_map(fn ($r) => $r->data, $promise->getValue()->answers);
         expect($names)->toContain('localhost');
 
         expect($fallback->wasCalled)->toBeFalse();
@@ -136,7 +138,7 @@ describe('HostsFileExecutor', function () {
         // Should find 127.0.0.1 AND 127.0.0.2
         expect($message->answers)->toHaveCount(2);
 
-        $ips = array_map(fn($r) => $r->data, $message->answers);
+        $ips = array_map(fn ($r) => $r->data, $message->answers);
         expect($ips)->toContain('127.0.0.1');
         expect($ips)->toContain('127.0.0.2');
     });
@@ -158,7 +160,7 @@ describe('HostsFileExecutor', function () {
 
         $query = new Query('localhost', RecordType::A, RecordClass::CH);
         $executor->query($query);
-        
+
         expect($fallback->wasCalled)->toBeTrue();
     });
 
@@ -205,7 +207,7 @@ describe('HostsFileExecutor', function () {
 });
 
 describe('HostsFileExecutor - Edge Cases', function () {
-    $hostsContent = <<<EOT
+    $hostsContent = <<<'EOT'
     127.0.0.1       localhost
     127.0.0.2       localhost
     ::1             localhost ip6-localhost
@@ -218,7 +220,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
     EOT;
 
     $hostsFile = new HostsFile($hostsContent);
-    
+
     it('handles empty hostname query', function () use ($hostsFile) {
         $fallback = new MockExecutor();
         $executor = new HostsFileExecutor($hostsFile, $fallback);
@@ -295,7 +297,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
     });
 
     it('handles IPv6 with different compression formats', function () {
-        $hostsContent = <<<EOT
+        $hostsContent = <<<'EOT'
         2001:db8:0:0:0:0:0:1    full.ipv6.local
         2001:db8::1             compressed.ipv6.local
         EOT;
@@ -319,7 +321,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        $hostnames = array_map(fn($r) => $r->data, $promise->getValue()->answers);
+        $hostnames = array_map(fn ($r) => $r->data, $promise->getValue()->answers);
         expect($hostnames)->toContain('localhost');
     });
 
@@ -369,9 +371,9 @@ describe('HostsFileExecutor - Edge Cases', function () {
     });
 
     it('handles loopback range IPs', function () {
-        $hostsContent = "127.0.0.2    loopback2.local";
+        $hostsContent = '127.0.0.2    loopback2.local';
         $hostsFile = new HostsFile($hostsContent);
-        
+
         $fallback = new MockExecutor();
         $executor = new HostsFileExecutor($hostsFile, $fallback);
 
@@ -383,9 +385,9 @@ describe('HostsFileExecutor - Edge Cases', function () {
     });
 
     it('handles private network IPs (10.x.x.x)', function () {
-        $hostsContent = "10.0.0.1    internal.local";
+        $hostsContent = '10.0.0.1    internal.local';
         $hostsFile = new HostsFile($hostsContent);
-        
+
         $fallback = new MockExecutor();
         $executor = new HostsFileExecutor($hostsFile, $fallback);
 
@@ -397,9 +399,9 @@ describe('HostsFileExecutor - Edge Cases', function () {
     });
 
     it('handles link-local IPv6 addresses', function () {
-        $hostsContent = "fe80::1    linklocal.local";
+        $hostsContent = 'fe80::1    linklocal.local';
         $hostsFile = new HostsFile($hostsContent);
-        
+
         $fallback = new MockExecutor();
         $executor = new HostsFileExecutor($hostsFile, $fallback);
 
@@ -409,7 +411,6 @@ describe('HostsFileExecutor - Edge Cases', function () {
         expect($promise->isFulfilled())->toBeTrue();
         expect($promise->getValue()->answers[0]->data)->toBe('fe80::1');
     });
-
 
     it('sets correct flags in response message', function () use ($hostsFile) {
         $fallback = new MockExecutor();
@@ -482,9 +483,9 @@ describe('HostsFileExecutor - Edge Cases', function () {
     });
 
     it('handles punycode domains if supported', function () {
-        $hostsContent = "192.168.1.100    xn--n3h.local"; 
+        $hostsContent = '192.168.1.100    xn--n3h.local';
         $hostsFile = new HostsFile($hostsContent);
-        
+
         $fallback = new MockExecutor();
         $executor = new HostsFileExecutor($hostsFile, $fallback);
 
@@ -516,10 +517,10 @@ describe('HostsFileExecutor - Edge Cases', function () {
     });
 
     it('handles very long hostnames', function () {
-        $longHostname = str_repeat('a', 63) . '.local'; 
+        $longHostname = str_repeat('a', 63).'.local';
         $hostsContent = "192.168.1.200    $longHostname";
         $hostsFile = new HostsFile($hostsContent);
-        
+
         $fallback = new MockExecutor();
         $executor = new HostsFileExecutor($hostsFile, $fallback);
 
@@ -531,9 +532,9 @@ describe('HostsFileExecutor - Edge Cases', function () {
     });
 
     it('handles numeric-only hostnames', function () {
-        $hostsContent = "192.168.1.250    12345";
+        $hostsContent = '192.168.1.250    12345';
         $hostsFile = new HostsFile($hostsContent);
-        
+
         $fallback = new MockExecutor();
         $executor = new HostsFileExecutor($hostsFile, $fallback);
 
@@ -545,9 +546,9 @@ describe('HostsFileExecutor - Edge Cases', function () {
     });
 
     it('handles hostnames with hyphens', function () {
-        $hostsContent = "192.168.1.150    my-host-name.local";
+        $hostsContent = '192.168.1.150    my-host-name.local';
         $hostsFile = new HostsFile($hostsContent);
-        
+
         $fallback = new MockExecutor();
         $executor = new HostsFileExecutor($hostsFile, $fallback);
 

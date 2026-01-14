@@ -14,19 +14,22 @@ use Throwable;
 final class MockExecutor implements ExecutorInterface
 {
     public ?Promise $pendingPromise = null;
+
     public bool $wasCalled = false;
+
     public bool $wasCancelled = false;
 
     public function __construct(
         private readonly ?Message $resultToReturn = null,
         private readonly ?Throwable $errorToThrow = null,
         private readonly bool $shouldHang = false
-    ) {}
+    ) {
+    }
 
     public function query(Query $query): PromiseInterface
     {
         $this->wasCalled = true;
-        
+
         /** @var Promise<Message> $promise */
         $promise = new Promise();
         $this->pendingPromise = $promise;

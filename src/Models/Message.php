@@ -22,7 +22,6 @@ final class Message
      */
     public bool $isResponse = false;
 
-
     /**
      * Authoritative Answer.
      * RFC 1035: AA
@@ -47,24 +46,23 @@ final class Message
      */
     public bool $recursionAvailable = false;
 
-
     /**
-     *  @var list<Query> 
+     * @var list<Query>
      */
     public array $questions = [];
 
     /**
-     *  @var list<Record> 
+     * @var list<Record>
      */
     public array $answers = [];
 
     /**
-     *  @var list<Record> 
+     * @var list<Record>
      */
     public array $authority = [];
 
     /**
-     *  @var list<Record> 
+     * @var list<Record>
      */
     public array $additional = [];
 
@@ -74,7 +72,7 @@ final class Message
     }
 
     /**
-     * @param Query $query The query to be added to the message.
+     * @param  Query  $query  The query to be added to the message.
      * @return self A new Message instance with the query added.
      */
     public static function createRequest(Query $query): self
@@ -82,6 +80,7 @@ final class Message
         $message = new self();
         $message->recursionDesired = true;
         $message->questions[] = $query;
+
         return $message;
     }
 }

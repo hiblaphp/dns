@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Models\Message;
@@ -47,7 +49,6 @@ function create_socket_pair(): array
     return $sockets;
 }
 
-
 function retryTest(callable $test, int $maxRetries = 3, int $retryDelayMs = 500): void
 {
     $lastError = null;
@@ -55,6 +56,7 @@ function retryTest(callable $test, int $maxRetries = 3, int $retryDelayMs = 500)
     for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
         try {
             $test();
+
             return;
         } catch (Throwable $e) {
             $lastError = $e;
@@ -71,15 +73,17 @@ function retryTest(callable $test, int $maxRetries = 3, int $retryDelayMs = 500)
 
 function withResolvConf(string $content, callable $testFn): void
 {
-    $file = sys_get_temp_dir() . '/resolv_' . uniqid() . '.conf';
+    $file = sys_get_temp_dir().'/resolv_'.uniqid().'.conf';
     file_put_contents($file, $content);
+
     try {
         $testFn($file);
     } finally {
-        if (file_exists($file)) unlink($file);
+        if (file_exists($file)) {
+            unlink($file);
+        }
     }
 }
-
 
 function create_message_with_ttls(
     array $answerTtls = [],

@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hibla\Dns\Resolvers;
+namespace Hibla\Dns;
 
 use Hibla\Cache\ArrayCache;
 use Hibla\Cache\Interfaces\CacheInterface;
 use Hibla\Dns\Configs\Config;
 use Hibla\Dns\Configs\HostsFile;
+use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Interfaces\ExecutorInterface;
 use Hibla\Dns\Interfaces\ResolverInterface;
 use Hibla\Dns\Queries\CachingExecutor;
@@ -19,10 +20,33 @@ use Hibla\Dns\Queries\SelectiveTransportExecutor;
 use Hibla\Dns\Queries\TcpTransportExecutor;
 use Hibla\Dns\Queries\TimeoutExecutor;
 use Hibla\Dns\Queries\UdpTransportExecutor;
+use Hibla\Dns\Resolvers\Resolver;
+use Hibla\Promise\Interfaces\PromiseInterface;
 use RuntimeException;
 use UnderflowException;
 
-final class Factory
+/**
+ * DNS Resolver - Main entry point for DNS resolution.
+ *
+ * @example Quick resolve with defaults
+ * ```php
+ * DNS::resolve('google.com')->then(fn($ip) => echo $ip);
+ * ```
+ * @example Custom nameserver
+ * ```php
+ * $resolver = DNS::new()->withNameservers('8.8.8.8')->build();
+ * ```
+ * @example Full configuration
+ * ```php
+ * $resolver = DNS::new()
+ *     ->withNameservers(['1.1.1.1', '8.8.8.8'])
+ *     ->withTimeout(3.0)
+ *     ->withRetries(2)
+ *     ->withCache()
+ *     ->build();
+ * ```
+ */
+final class Dns
 {
     private const array DEFAULT_NAMESERVERS = [
         '1.1.1.1', // Cloudflare (Primary)
@@ -36,42 +60,133 @@ final class Factory
     private float $timeout = 5.0;
 
     private int $retries = 2;
-    
+
     private bool $enableCache = false;
 
-    public function withConfig(Config $config): self
+    /**
+     * Private constructor - use DNS::new() to create instances.
+     */
+    private function __construct()
+    {
+        // Intentionally private - forces use of static factory methods
+    }
+
+    /**
+     * Create a new DNS resolver builder.
+     */
+    public static function new(): static
+    {
+        return new self();
+    }
+
+    /**
+     * Create a resolver with default system configuration.
+     */
+    public static function create(): ResolverInterface
+    {
+        return static::new()->build();
+    }
+
+    /**
+     * Quick resolve with default settings.
+     *
+     * @param  string  $domain  Domain name to resolve
+     * @return PromiseInterface<string> Promise that resolves to an IP address
+     */
+    public static function resolve(string $domain): PromiseInterface
+    {
+        return static::create()->resolve($domain);
+    }
+
+    /**
+     * Quick resolveAll with default settings.
+     *
+     * @param  string  $domain  Domain name to resolve
+     * @param  RecordType  $type  Record type to query
+     * @return PromiseInterface<array<RecordType, string>> Promise that resolves to an array of records
+     */
+    public static function resolveAll(string $domain, RecordType $type = RecordType::A): PromiseInterface
+    {
+        return static::create()->resolveAll($domain, $type);
+    }
+
+    /**
+     * Set custom DNS configuration.
+     *
+     * @param  Config  $config  DNS configuration
+     * @return static New instance with config applied
+     */
+    public function withConfig(Config $config): static
     {
         $clone = clone $this;
         $clone->config = $config;
+
         return $clone;
     }
 
-    public function withTimeout(float $timeout): self
+    /**
+     * Set nameservers.
+     *
+     * @param  string|array<string>  $nameservers  Single nameserver or array of nameservers
+     * @return static New instance with nameservers applied
+     */
+    public function withNameservers(string|array $nameservers): static
+    {
+        $nameservers = \is_string($nameservers) ? [$nameservers] : $nameservers;
+
+        return $this->withConfig(new Config($nameservers));
+    }
+
+    /**
+     * Set query timeout in seconds.
+     *
+     * @param  float  $timeout  Timeout in seconds
+     * @return static New instance with timeout applied
+     */
+    public function withTimeout(float $timeout): static
     {
         $clone = clone $this;
         $clone->timeout = $timeout;
+
         return $clone;
     }
 
-    public function withRetries(int $retries): self
+    /**
+     * Set number of retry attempts on failure.
+     *
+     * @param  int  $retries  Number of retries (0 to disable retries)
+     * @return static New instance with retries applied
+     */
+    public function withRetries(int $retries): static
     {
         $clone = clone $this;
         $clone->retries = $retries;
+
         return $clone;
     }
 
-    public function withCache(?CacheInterface $cache = null): self
+    /**
+     * Enable caching with optional custom cache implementation.
+     *
+     * @param  CacheInterface|null  $cache  Custom cache implementation (defaults to ArrayCache with 256 entries)
+     * @return static New instance with cache enabled
+     */
+    public function withCache(?CacheInterface $cache = null): static
     {
         $clone = clone $this;
         $clone->enableCache = true;
         $clone->cache = $cache;
+
         return $clone;
     }
 
-    public function create(): ResolverInterface
+    /**
+     * Build and return the configured DNS resolver.
+     */
+    public function build(): ResolverInterface
     {
         $config = $this->config ?? Config::loadSystemConfigBlocking();
-        
+
         if (\count($config->nameservers) === 0) {
             $config = new Config(self::DEFAULT_NAMESERVERS);
         }
@@ -105,7 +220,7 @@ final class Factory
         }
 
         $executor = new RetryExecutor($primary, $this->retries);
-        
+
         return new CoopExecutor($executor);
     }
 
@@ -114,7 +229,7 @@ final class Factory
         if (str_starts_with($nameserver, 'tcp://')) {
             return $this->createTcp($nameserver);
         }
-        
+
         if (str_starts_with($nameserver, 'udp://')) {
             return $this->createUdp($nameserver);
         }
@@ -145,6 +260,7 @@ final class Factory
     {
         try {
             $hosts = HostsFile::loadFromPathBlocking();
+
             return new HostsFileExecutor($hosts, $executor);
         } catch (RuntimeException) {
             return $executor;

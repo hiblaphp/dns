@@ -10,53 +10,54 @@ use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
-use Throwable;
 
 final class CachingExecutor implements ExecutorInterface
 {
     private const int DEFAULT_TTL = 60;
 
-    /**
-     * @param CacheInterface<Message> $cache
-     */
     public function __construct(
         private readonly CacheInterface $cache,
         private readonly ExecutorInterface $executor
-    ) {}
+    ) {
+    }
 
+    /**
+     * @inheritDoc
+     */
     public function query(Query $query): PromiseInterface
     {
         $key = \sprintf('%s:%d:%d', $query->name, $query->type->value, $query->class->value);
 
         /** @var Promise<Message> $promise */
         $promise = new Promise();
-        
-        /** @var PromiseInterface|null $pendingOperation */
-        $pendingOperation = null;
-        
-        /** @var bool $cacheError - Track if cache failed */
-        $cacheError = false;
 
-        $pendingOperation = $this->cache->get($key);
+        /** @var PromiseInterface<Message|null> $cacheOperation */
+        // @phpstan-ignore-next-line
+        $cacheOperation = $this->cache->get($key);
 
-        $pendingOperation->then(
-            onFulfilled: function (?Message $cachedMessage) use ($key, $query, $promise, &$pendingOperation, &$cacheError) {
+        /** @var PromiseInterface<Message>|null $networkOperation - Track network query operation */
+        $networkOperation = null;
+
+        $cacheOperation->then(
+            onFulfilled: function (?Message $cachedMessage) use ($key, $query, $promise, &$networkOperation) {
                 if ($cachedMessage !== null) {
                     $promise->resolve($cachedMessage);
+
                     return;
                 }
 
-                $this->queryNetwork($query, $key, $promise, $pendingOperation, $cacheError);
+                $networkOperation = $this->queryNetwork($query, $key, $promise, false);
             },
-            onRejected: function (Throwable $e) use ($query, $key, $promise, &$pendingOperation, &$cacheError) {
-                $cacheError = true; 
-                $this->queryNetwork($query, $key, $promise, $pendingOperation, $cacheError);
+            onRejected: function (mixed $e) use ($query, $key, $promise, &$networkOperation): void {
+                $networkOperation = $this->queryNetwork($query, $key, $promise, true);
             }
         );
 
-        $promise->onCancel(function () use (&$pendingOperation) {
-            if ($pendingOperation instanceof PromiseInterface) {
-                $pendingOperation->cancelChain();
+        $promise->onCancel(function () use (&$cacheOperation, &$networkOperation): void {
+            $cacheOperation->cancelChain();
+            
+            if ($networkOperation !== null) {
+                $networkOperation->cancelChain();
             }
         });
 
@@ -65,23 +66,28 @@ final class CachingExecutor implements ExecutorInterface
 
     /**
      * Queries the network and handles caching
+     * 
+     * @param Promise<Message> $promise
+     * @return PromiseInterface<Message>
      */
-    private function queryNetwork(Query $query, string $key, Promise $promise, ?PromiseInterface &$pendingOperation, bool $cacheError): void
+    private function queryNetwork(Query $query, string $key, Promise $promise, bool $cacheError): PromiseInterface
     {
-        $pendingOperation = $this->executor->query($query);
-        
-        $pendingOperation->then(
-            function (Message $response) use ($promise, $key, $cacheError) {
-                if (!$cacheError && !$response->isTruncated) {
+        $networkOperation = $this->executor->query($query);
+
+        $networkOperation->then(
+            function (Message $response) use ($promise, $key, $cacheError): void {
+                if (! $cacheError && ! $response->isTruncated) {
                     $ttl = $this->calculateTtl($response);
                     $this->cache->set($key, $response, (float) $ttl);
                 }
                 $promise->resolve($response);
             },
-            function (Throwable $e) use ($promise) {
+            function (mixed $e) use ($promise): void {
                 $promise->reject($e);
             }
         );
+
+        return $networkOperation;
     }
 
     private function calculateTtl(Message $message): int
@@ -93,7 +99,7 @@ final class CachingExecutor implements ExecutorInterface
                 $minTtl = $record->ttl;
             }
         }
-        
+
         foreach ($message->authority as $record) {
             if ($minTtl === null || $record->ttl < $minTtl) {
                 $minTtl = $record->ttl;

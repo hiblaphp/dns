@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Enums\ResponseCode;
@@ -14,7 +16,7 @@ describe('UdpTransportExecutor Integration', function () {
     beforeEach(function () {
         $socket = @fsockopen('udp://1.1.1.1', 53, $errno, $errstr, 0.5);
 
-        if (!$socket) {
+        if (! $socket) {
             test()->skip('No internet connection to 1.1.1.1');
         }
 
@@ -65,7 +67,7 @@ describe('UdpTransportExecutor Integration', function () {
 
         $aaaaRecords = array_filter(
             $result->answers,
-            fn($record) => $record->type === RecordType::AAAA
+            fn ($record) => $record->type === RecordType::AAAA
         );
 
         expect($aaaaRecords)->not->toBeEmpty('No AAAA records found (likely only received CNAME)');
@@ -77,7 +79,7 @@ describe('UdpTransportExecutor Integration', function () {
 
     it('returns NXDOMAIN for non-existent domains', function () {
         $executor = new UdpTransportExecutor('1.1.1.1');
-        $domain = 'hibla-test-' . uniqid() . '.invalid';
+        $domain = 'hibla-test-'.uniqid().'.invalid';
         $query = new Query($domain, RecordType::A, RecordClass::IN);
 
         $promise = $executor->query($query);
@@ -109,8 +111,9 @@ describe('UdpTransportExecutor Integration', function () {
     });
 
     it('rejects invalid schemes in constructor', function () {
-        expect(fn() => new UdpTransportExecutor('tcp://1.1.1.1'))
-            ->toThrow(InvalidArgumentException::class, 'Only udp:// scheme is supported');
+        expect(fn () => new UdpTransportExecutor('tcp://1.1.1.1'))
+            ->toThrow(InvalidArgumentException::class, 'Only udp:// scheme is supported')
+        ;
     });
 
     it('automatically adds default DNS port 53', function () {
@@ -162,7 +165,7 @@ describe('UdpTransportExecutor Integration', function () {
         $executor = new UdpTransportExecutor('1.1.1.1');
 
         $longLabel = str_repeat('a', 60);
-        $longDomain = $longLabel . '.' . $longLabel . '.' . $longLabel . '.' . $longLabel . '.com';
+        $longDomain = $longLabel.'.'.$longLabel.'.'.$longLabel.'.'.$longLabel.'.com';
 
         $query = new Query($longDomain, RecordType::A, RecordClass::IN);
         $promise = $executor->query($query);
@@ -184,7 +187,7 @@ describe('UdpTransportExecutor Integration', function () {
         run_with_timeout(2.0);
 
         if ($error) {
-            expect($error)->toBeInstanceOf(Hibla\Dns\Exceptions\QueryFailedException::class);
+            expect($error)->toBeInstanceOf(QueryFailedException::class);
             expect($error->getMessage())->toContain('Query too large');
         } else {
             expect($result)->toBeInstanceOf(Message::class);
@@ -265,7 +268,7 @@ describe('UdpTransportExecutor Integration', function () {
         expect($result->responseCode)->toBe(ResponseCode::OK);
         expect($result->answers)->not->toBeEmpty();
     })->skip(function () {
-        set_error_handler(fn() => true);
+        set_error_handler(fn () => true);
 
         $socket = @fsockopen('udp://[2606:4700:4700::1111]', 53, $errno, $errstr, 0.5);
 
@@ -273,12 +276,12 @@ describe('UdpTransportExecutor Integration', function () {
 
         if ($socket) {
             fclose($socket);
+
             return false;
         }
 
         return true;
     }, 'No IPv6 connectivity to Cloudflare DNS');
-
 
     it('handles multiple concurrent queries', function () {
         $executor = new UdpTransportExecutor('1.1.1.1');
@@ -342,12 +345,12 @@ describe('UdpTransportExecutor Integration', function () {
         $query = new Query('google.com', RecordType::A, RecordClass::IN);
 
         $promise = $executor->query($query);
-        
+
         $promise->cancel();
 
         expect($promise->isCancelled())->toBeTrue();
 
-        $timeout = Loop::addTimer(0.1, fn() => Loop::stop());
+        $timeout = Loop::addTimer(0.1, fn () => Loop::stop());
         Loop::run();
         Loop::cancelTimer($timeout);
     });
@@ -357,10 +360,10 @@ describe('UdpTransportExecutor Integration', function () {
         $query = new Query('google.com', RecordType::A, RecordClass::IN);
 
         $promise = $executor->query($query);
-        
+
         $promise->cancel();
         $promise->cancel();
-        $promise->cancel(); 
+        $promise->cancel();
 
         expect($promise->isCancelled())->toBeTrue();
 
@@ -398,9 +401,10 @@ describe('UdpTransportExecutor Integration', function () {
     });
 
     it('handles invalid nameserver format gracefully', function () {
-        expect(fn() => new UdpTransportExecutor('not a valid address'))
-            ->not->toThrow(InvalidArgumentException::class);
-        
+        expect(fn () => new UdpTransportExecutor('not a valid address'))
+            ->not->toThrow(InvalidArgumentException::class)
+        ;
+
         $executor = new UdpTransportExecutor('not-a-valid-address');
         $query = new Query('google.com', RecordType::A, RecordClass::IN);
 
@@ -408,7 +412,9 @@ describe('UdpTransportExecutor Integration', function () {
         $error = null;
 
         $promise->then(
-            function ($result) { Loop::stop(); },
+            function ($result) {
+                Loop::stop();
+            },
             function ($e) use (&$error) {
                 $error = $e;
                 Loop::stop();
@@ -463,7 +469,7 @@ describe('UdpTransportExecutor Integration', function () {
         expect($result)->toBeInstanceOf(Message::class);
         expect($result->responseCode)->toBeIn([
             ResponseCode::NAME_ERROR,
-            ResponseCode::FORMAT_ERROR
+            ResponseCode::FORMAT_ERROR,
         ]);
     });
 
@@ -627,7 +633,7 @@ describe('UdpTransportExecutor Integration', function () {
 
     it('handles very long but valid domain names', function () {
         $executor = new UdpTransportExecutor('1.1.1.1');
-        $longDomain = str_repeat('a', 50) . '.' . str_repeat('b', 50) . '.com';
+        $longDomain = str_repeat('a', 50).'.'.str_repeat('b', 50).'.com';
         $query = new Query($longDomain, RecordType::A, RecordClass::IN);
 
         $promise = $executor->query($query);

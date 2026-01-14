@@ -24,22 +24,22 @@ final class UdpTransportExecutor implements ExecutorInterface
     private readonly Parser $parser;
 
     private readonly BinaryDumper $dumper;
-    
+
     private const int MAX_UDP_PACKET_SIZE = 512;
 
     /**
-     * @param string $nameserver IP address of the nameserver (e.g. "8.8.8.8" or "8.8.8.8:53")
+     * @param  string  $nameserver  IP address of the nameserver (e.g. "8.8.8.8" or "8.8.8.8:53")
      */
     public function __construct(string $nameserver)
     {
-        if (!str_contains($nameserver, '://')) {
-            $nameserver = 'udp://' . $nameserver;
-        } elseif (!str_starts_with($nameserver, 'udp://')) {
+        if (! str_contains($nameserver, '://')) {
+            $nameserver = 'udp://'.$nameserver;
+        } elseif (! str_starts_with($nameserver, 'udp://')) {
             throw new InvalidArgumentException('Only udp:// scheme is supported');
         }
 
         $parts = parse_url($nameserver);
-        if (!isset($parts['port'])) {
+        if (! isset($parts['port'])) {
             $nameserver .= ':53';
         }
 
@@ -62,7 +62,7 @@ final class UdpTransportExecutor implements ExecutorInterface
             ));
         }
 
-        set_error_handler(fn() => true);
+        set_error_handler(fn () => true);
 
         $socket = @stream_socket_client(
             $this->nameserver,
@@ -77,7 +77,7 @@ final class UdpTransportExecutor implements ExecutorInterface
         if ($socket === false) {
             return Promise::rejected(new QueryFailedException(
                 \sprintf('Unable to connect to DNS server %s: %s', $this->nameserver, $errstr),
-                $errno
+                $errno ?? 0
             ));
         }
 
@@ -86,11 +86,13 @@ final class UdpTransportExecutor implements ExecutorInterface
         $written = @fwrite($socket, $queryData);
         if ($written !== \strlen($queryData)) {
             fclose($socket);
+
             return Promise::rejected(new QueryFailedException('Failed to write DNS query to socket'));
         }
 
         /** @var Promise<Message> $promise */
         $promise = new Promise();
+        /** @var string|null $watcherId */
         $watcherId = null;
 
         $cleanup = function () use ($socket, &$watcherId): void {
@@ -127,6 +129,7 @@ final class UdpTransportExecutor implements ExecutorInterface
                     $promise->reject(new ResponseTruncatedException(
                         \sprintf('DNS query for %s returned truncated result', $query->name)
                     ));
+
                     return;
                 }
 
