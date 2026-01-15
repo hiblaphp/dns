@@ -10,6 +10,16 @@ use Hibla\Dns\Models\Query;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 
+/**
+ * Retries failed DNS queries automatically.
+ *
+ * Wraps another executor and retries queries on failure (e.g., network timeouts,
+ * packet loss). This is essential for UDP transport since it's unreliable and
+ * packets can be dropped. Does not retry on application-level errors like NXDOMAIN.
+ *
+ * @see UdpTransportExecutor UDP benefits most from retry logic
+ * @see TimeoutExecutor Often used together for timeout handling
+ */
 final class RetryExecutor implements ExecutorInterface
 {
     public function __construct(
@@ -19,7 +29,7 @@ final class RetryExecutor implements ExecutorInterface
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function query(Query $query): PromiseInterface
     {

@@ -37,6 +37,7 @@ enum RecordType: int
     case TXT = 16;
     case AAAA = 28;
     case SRV = 33;
+    case NAPTR = 35;
     case OPT = 41;
     case SSHFP = 44;
     case ANY = 255;

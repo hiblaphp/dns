@@ -12,8 +12,15 @@ use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 
 /**
- * Attempts to send a query via UDP. If the response is truncated (TC bit set),
- * it automatically retries the query via TCP.
+ * Automatically selects UDP or TCP transport based on response size.
+ *
+ * Implements the standard DNS fallback mechanism: attempts UDP first for speed,
+ * then automatically retries with TCP if the response is truncated (TC flag set).
+ * This handles cases where responses exceed UDP's 512-byte limit, such as
+ * DNSSEC responses, large TXT records, or domains with many MX/NS records.
+ *
+ * @see UdpTransportExecutor
+ * @see TcpTransportExecutor
  */
 final class SelectiveTransportExecutor implements ExecutorInterface
 {
@@ -24,7 +31,7 @@ final class SelectiveTransportExecutor implements ExecutorInterface
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function query(Query $query): PromiseInterface
     {

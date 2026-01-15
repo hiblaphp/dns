@@ -11,6 +11,15 @@ use Hibla\Dns\Models\Query;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 
+/**
+ * Caches DNS responses to avoid repeated network queries.
+ *
+ * Stores successful DNS responses in cache with TTL (time-to-live) from the
+ * DNS records. Subsequent identical queries are served from cache until expiry.
+ * This significantly improves performance and reduces DNS server load.
+ *
+ * Respects DNS TTL values and uses the minimum TTL from all records in the response.
+ */
 final class CachingExecutor implements ExecutorInterface
 {
     private const int DEFAULT_TTL = 60;
@@ -22,7 +31,7 @@ final class CachingExecutor implements ExecutorInterface
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function query(Query $query): PromiseInterface
     {
@@ -55,7 +64,7 @@ final class CachingExecutor implements ExecutorInterface
 
         $promise->onCancel(function () use (&$cacheOperation, &$networkOperation): void {
             $cacheOperation->cancelChain();
-            
+
             if ($networkOperation !== null) {
                 $networkOperation->cancelChain();
             }
@@ -66,7 +75,7 @@ final class CachingExecutor implements ExecutorInterface
 
     /**
      * Queries the network and handles caching
-     * 
+     *
      * @param Promise<Message> $promise
      * @return PromiseInterface<Message>
      */

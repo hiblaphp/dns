@@ -83,6 +83,8 @@ final class BinaryDumper
                 RecordType::MX => $this->mxToBinary($this->ensureMxData($record->data)),
                 RecordType::SRV => $this->srvToBinary($this->ensureSrvData($record->data)),
                 RecordType::SOA => $this->soaToBinary($this->ensureSoaData($record->data)),
+                RecordType::CAA => $this->caaToBinary($this->ensureCaaData($record->data)),
+                RecordType::SSHFP => $this->sshfpToBinary($this->ensureSshfpData($record->data)),
                 // Fallback for unknown types or simple binary data
                 default => $this->ensureString($record->data),
             };
@@ -161,6 +163,36 @@ final class BinaryDumper
     }
 
     /**
+     * @param  array{flags: int|string, tag: string, value: string}  $data
+     */
+    private function caaToBinary(array $data): string
+    {
+        $tag = $data['tag'];
+        $value = $data['value'];
+
+        return \chr((int) $data['flags'])
+            .\chr(\strlen($tag))
+            .$tag
+            .$value;
+    }
+
+    /**
+     * @param  array{algorithm: int|string, fptype: int|string, fingerprint: string}  $data
+     */
+    private function sshfpToBinary(array $data): string
+    {
+        // Convert hex fingerprint back to binary
+        $fingerprint = hex2bin($data['fingerprint']);
+        if ($fingerprint === false) {
+            $fingerprint = '';
+        }
+
+        return \chr((int) $data['algorithm'])
+            .\chr((int) $data['fptype'])
+            .$fingerprint;
+    }
+
+    /**
      * @param  mixed  $value
      */
     private function ensureString($value): string
@@ -218,6 +250,32 @@ final class BinaryDumper
         assert(isset($value['mname'], $value['rname'], $value['serial'], $value['refresh'], $value['retry'], $value['expire'], $value['minimum']));
 
         /** @var array{mname: string, rname: string, serial: int|string, refresh: int|string, retry: int|string, expire: int|string, minimum: int|string} */
+        return $value;
+    }
+
+    /**
+     * @param  mixed  $value
+     * @return array{flags: int|string, tag: string, value: string}
+     */
+    private function ensureCaaData($value): array
+    {
+        assert(\is_array($value));
+        assert(isset($value['flags'], $value['tag'], $value['value']));
+
+        /** @var array{flags: int|string, tag: string, value: string} */
+        return $value;
+    }
+
+    /**
+     * @param  mixed  $value
+     * @return array{algorithm: int|string, fptype: int|string, fingerprint: string}
+     */
+    private function ensureSshfpData($value): array
+    {
+        assert(\is_array($value));
+        assert(isset($value['algorithm'], $value['fptype'], $value['fingerprint']));
+
+        /** @var array{algorithm: int|string, fptype: int|string, fingerprint: string} */
         return $value;
     }
 }

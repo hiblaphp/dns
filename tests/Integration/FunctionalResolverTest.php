@@ -227,7 +227,7 @@ describe('Functional Resolver (Real Network)', function () {
         $error = null;
         $successResult = null;
 
-        $resolver->resolve('non-existent-'.uniqid().'.invalid')->then(
+        $resolver->resolve('non-existent-' . uniqid() . '.invalid')->then(
             function ($result) use (&$successResult) {
                 $successResult = $result;
                 Loop::stop();
@@ -403,7 +403,7 @@ describe('Functional Resolver (Real Network)', function () {
             ->build()
         ;
 
-        $longDomain = str_repeat('a', 50).'.'.str_repeat('b', 50).'.com';
+        $longDomain = str_repeat('a', 50) . '.' . str_repeat('b', 50) . '.com';
 
         $error = null;
 
@@ -521,6 +521,239 @@ describe('Functional Resolver (Real Network)', function () {
             expect($records)->toBeArray();
             expect($records[0])->toBeString();
             expect($records[0])->toContain('google');
+        }
+    });
+
+    it('resolves SRV records', function () {
+        $resolver = Dns::create();
+
+        $records = [];
+        $error = null;
+
+        $resolver->resolveAll('_xmpp-client._tcp.jabber.org', RecordType::SRV)->then(
+            function ($result) use (&$records) {
+                $records = $result;
+                Loop::stop();
+            },
+            function ($e) use (&$error, &$records) {
+                $error = $e;
+                $records = [];
+                Loop::stop();
+            }
+        );
+
+        $timer = Loop::addTimer(6.0, fn () => Loop::stop());
+        Loop::run();
+        Loop::cancelTimer($timer);
+
+        expect($records)->toBeArray();
+
+        if (! empty($records)) {
+            expect($records[0])->toBeArray();
+            expect($records[0])->toHaveKeys(['priority', 'weight', 'port', 'target']);
+            expect($records[0]['priority'])->toBeInt();
+            expect($records[0]['weight'])->toBeInt();
+            expect($records[0]['port'])->toBeInt();
+            expect($records[0]['target'])->toBeString();
+            expect($records[0]['target'])->toMatch('/\./'); // Should be a domain name
+        }
+    });
+
+    it('resolves CAA records', function () {
+        $resolver = Dns::create();
+
+        $records = null;
+        $resolver->resolveAll('google.com', RecordType::CAA)->then(
+            function ($result) use (&$records) {
+                $records = $result;
+                Loop::stop();
+            },
+            function ($error) use (&$records) {
+                $records = [];
+                Loop::stop();
+            }
+        );
+
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
+        Loop::run();
+        Loop::cancelTimer($timer);
+
+        if (! empty($records)) {
+            expect($records)->toBeArray();
+            expect($records[0])->toBeArray();
+            expect($records[0])->toHaveKeys(['flags', 'tag', 'value']);
+            expect($records[0]['flags'])->toBeInt();
+            expect($records[0]['tag'])->toBeString();
+            expect($records[0]['value'])->toBeString();
+
+            expect($records[0]['tag'])->toBeIn(['issue', 'issuewild', 'iodef']);
+        } else {
+            // Some domains might not have CAA records
+            expect($records)->toBeArray();
+        }
+    });
+
+    it('resolves SSHFP records', function () {
+        $resolver = Dns::create();
+
+        $records = null;
+        $resolver->resolveAll('github.com', RecordType::SSHFP)->then(
+            function ($result) use (&$records) {
+                $records = $result;
+                Loop::stop();
+            },
+            function ($error) use (&$records) {
+                $records = [];
+                Loop::stop();
+            }
+        );
+
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
+        Loop::run();
+        Loop::cancelTimer($timer);
+
+        if (! empty($records)) {
+            expect($records)->toBeArray();
+            expect($records[0])->toBeArray();
+            expect($records[0])->toHaveKeys(['algorithm', 'fptype', 'fingerprint']);
+            expect($records[0]['algorithm'])->toBeInt();
+            expect($records[0]['fptype'])->toBeInt();
+            expect($records[0]['fingerprint'])->toBeString();
+
+            expect($records[0]['algorithm'])->toBeGreaterThanOrEqual(1);
+            expect($records[0]['algorithm'])->toBeLessThanOrEqual(4);
+
+            expect($records[0]['fptype'])->toBeIn([1, 2]);
+
+            expect($records[0]['fingerprint'])->toMatch('/^[a-fA-F0-9]+$/');
+        } else {
+            // Not all domains have SSHFP records
+            expect($records)->toBeArray();
+        }
+    });
+
+    it('resolves multiple SRV records with priority sorting', function () {
+        $resolver = Dns::create();
+
+        $records = null;
+        $resolver->resolveAll('_minecraft._tcp.hypixel.net', RecordType::SRV)->then(
+            function ($result) use (&$records) {
+                $records = $result;
+                Loop::stop();
+            },
+            function ($error) use (&$records) {
+                $records = [];
+                Loop::stop();
+            }
+        );
+
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
+        Loop::run();
+        Loop::cancelTimer($timer);
+
+        if (! empty($records)) {
+            expect($records)->toBeArray();
+
+            if (count($records) > 1) {
+                foreach ($records as $record) {
+                    expect($record)->toBeArray();
+                    expect($record)->toHaveKeys(['priority', 'weight', 'port', 'target']);
+                }
+            }
+        } else {
+            expect($records)->toBeArray();
+        }
+    });
+
+    it('resolves NAPTR records', function () {
+        $resolver = Dns::create();
+
+        $records = [];
+        $error = null;
+
+        $resolver->resolveAll('4.3.2.1.5.5.5.0.0.8.1.e164.arpa', RecordType::NAPTR)->then(
+            function ($result) use (&$records) {
+                $records = $result;
+                Loop::stop();
+            },
+            function ($e) use (&$error, &$records) {
+                $error = $e;
+                $records = [];
+                Loop::stop();
+            }
+        );
+
+        $timer = Loop::addTimer(6.0, fn () => Loop::stop());
+        Loop::run();
+        Loop::cancelTimer($timer);
+
+        expect($records)->toBeArray();
+
+        if (! empty($records)) {
+            expect($records[0])->toBeArray();
+            expect($records[0])->toHaveKeys(['order', 'preference', 'flags', 'services', 'regexp', 'replacement']);
+            expect($records[0]['order'])->toBeInt();
+            expect($records[0]['preference'])->toBeInt();
+        }
+    });
+
+    it('handles missing structured records gracefully', function () {
+        $resolver = Dns::create();
+
+        $error = null;
+        $records = null;
+
+        $resolver->resolveAll('example.com', RecordType::SSHFP)->then(
+            function ($result) use (&$records) {
+                $records = $result;
+                Loop::stop();
+            },
+            function ($e) use (&$error) {
+                $error = $e;
+                Loop::stop();
+            }
+        );
+
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
+        Loop::run();
+        Loop::cancelTimer($timer);
+
+        if ($error !== null) {
+            expect($error)->toBeInstanceOf(RecordNotFoundException::class);
+        } else {
+            expect($records)->toBeArray();
+            expect($records)->toBeEmpty();
+        }
+    });
+
+    it('resolves multiple CAA records', function () {
+        $resolver = Dns::create();
+
+        $records = null;
+        $resolver->resolveAll('github.com', RecordType::CAA)->then(
+            function ($result) use (&$records) {
+                $records = $result;
+                Loop::stop();
+            },
+            function ($error) use (&$records) {
+                $records = [];
+                Loop::stop();
+            }
+        );
+
+        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
+        Loop::run();
+        Loop::cancelTimer($timer);
+
+        if (! empty($records)) {
+            expect($records)->toBeArray();
+
+            foreach ($records as $record) {
+                expect($record)->toBeArray();
+                expect($record)->toHaveKeys(['flags', 'tag', 'value']);
+            }
+        } else {
+            expect($records)->toBeArray();
         }
     });
 

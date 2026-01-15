@@ -25,13 +25,29 @@ final class Resolver implements ResolverInterface
     ) {
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function resolve(string $domain): PromiseInterface
     {
         return $this->resolveAll($domain, RecordType::A)
-            ->then(fn (array $ips) => $ips[(new Randomizer())->getInt(0, \count($ips) - 1)])
+            ->then(function (array $ips): string {
+                if (\count($ips) === 0) {
+                    throw new RecordNotFoundException('No IP addresses found');
+                }
+
+                $ip = $ips[(new Randomizer())->getInt(0, \count($ips) - 1)];
+
+                assert(\is_string($ip), 'A record should return string IP address');
+
+                return $ip;
+            })
         ;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function resolveAll(string $domain, RecordType $type): PromiseInterface
     {
         $query = new Query($domain, $type, RecordClass::IN);
@@ -39,7 +55,13 @@ final class Resolver implements ResolverInterface
         return $this->executor->query($query)
             ->then(
                 fn (Message $response) => $this->extractValues($query, $response),
-                fn ($error) => throw $error
+                function (mixed $error) {
+                    if ($error instanceof \Throwable) {
+                        throw $error;
+                    }
+
+                    throw new \RuntimeException('Unknown error occurred');
+                }
             )
         ;
     }
@@ -58,7 +80,6 @@ final class Resolver implements ResolverInterface
                 ResponseCode::NAME_ERROR => 'Non-Existent Domain / NXDOMAIN',
                 ResponseCode::NOT_IMPLEMENTED => 'Not Implemented',
                 ResponseCode::REFUSED => 'Refused',
-                default => 'Unknown error code '.$response->responseCode->value,
             };
 
             throw new RecordNotFoundException(
@@ -106,9 +127,16 @@ final class Resolver implements ResolverInterface
                 fn (Record $r) => strcasecmp($r->name, $name) === 0 && $r->type === RecordType::CNAME
             );
 
+            /** @var list<mixed> $results */
             $results = [];
             foreach ($cnameMatches as $cnameRecord) {
-                $aliasTarget = (string) $cnameRecord->data;
+                $data = $cnameRecord->data;
+
+                if (! \is_string($data)) {
+                    continue;
+                }
+
+                $aliasTarget = $data;
 
                 // Prevent self-referencing CNAME
                 if (strcasecmp($aliasTarget, $name) === 0) {
@@ -126,9 +154,6 @@ final class Resolver implements ResolverInterface
         return [];
     }
 
-    /**
-     * Determine if CNAME should be followed for this record type
-     */
     private function shouldFollowCNAME(RecordType $type): bool
     {
         return match ($type) {

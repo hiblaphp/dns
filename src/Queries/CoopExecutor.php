@@ -10,6 +10,16 @@ use Hibla\Dns\Models\Query;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 
+/**
+ * Deduplicates concurrent identical DNS queries.
+ *
+ * When multiple identical queries are made simultaneously, only one network
+ * request is executed and the result is shared among all callers. This prevents
+ * unnecessary duplicate queries and reduces DNS server load.
+ *
+ * Maintains reference counting so the network query is only cancelled when
+ * all callers have cancelled their requests.
+ */
 final class CoopExecutor implements ExecutorInterface
 {
     /**
@@ -33,7 +43,7 @@ final class CoopExecutor implements ExecutorInterface
     }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function query(Query $query): PromiseInterface
     {

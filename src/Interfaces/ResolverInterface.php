@@ -16,7 +16,7 @@ use Hibla\Promise\Interfaces\PromiseInterface;
  * details, returning just the data applications need.
  *
  * Key differences from ExecutorInterface:
- * - Resolver: High-level, returns simple data types (strings, arrays)
+ * - Resolver: High-level, returns record data (strings or structured arrays)
  * - Executor: Low-level, returns full DNS Message objects
  *
  * Typical usage:
@@ -29,7 +29,7 @@ use Hibla\Promise\Interfaces\PromiseInterface;
  *     ->then(fn($ip) => echo "IP: $ip");  // "IP: 93.184.216.34"
  *
  * $resolver->resolveAll('example.com', RecordType::MX)
- *     ->then(fn($servers) => print_r($servers));  // ["10 mail.example.com", ...]
+ *     ->then(fn($servers) => print_r($servers));  // [['priority' => 10, 'target' => 'mail.example.com'], ...]
  * </code>
  */
 interface ResolverInterface
@@ -38,7 +38,7 @@ interface ResolverInterface
      * Resolves a domain name to a single IPv4 address.
      *
      * This is the most common DNS operation - looking up where to connect to a service.
-     * It performs an A record query and returns the first IP address found.
+     * It performs an A record query and returns one IP address.
      *
      * Why just one IP?
      * Many applications only need one address to establish a connection. For load
@@ -46,7 +46,7 @@ interface ResolverInterface
      *
      * Behavior:
      * - Queries for A records (IPv4 only)
-     * - Returns the first available IP address from the response
+     * - Returns a random IP address from the response
      * - Rejects if no A records are found
      * - Rejects on network errors, timeouts, or DNS server failures
      *
@@ -60,7 +60,7 @@ interface ResolverInterface
      *
      * @return PromiseInterface<string> A promise that:
      *                                   - Resolves with an IPv4 address string (e.g., "93.184.216.34")
-     *                                   - Rejects with QueryFailedException on network/DNS errors
+     *                                   - Rejects with RecordNotFoundException on network/DNS errors
      *                                   - Rejects with TimeoutException if query exceeds time limit
      *                                   - Rejects if no A records are found for the domain
      *
@@ -80,20 +80,32 @@ interface ResolverInterface
      * - You need complete record data, not just the first result
      *
      * Return value format varies by record type:
-     * - A/AAAA: ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"]
-     * - MX: ["10 mail.example.com", "20 mail2.example.com"] (priority + server)
-     * - TXT: ["v=spf1 include:_spf.example.com ~all", "google-site-verification=..."]
-     * - CNAME: ["target.example.com"]
-     * - NS: ["ns1.example.com", "ns2.example.com"]
+     * - A/AAAA/NS/PTR/CNAME: string[] - Simple strings
+     *   Example: ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"]
      *
-     * The returned data is extracted from DNS record RDATA fields and formatted as
-     * human-readable strings. For raw binary data or when you need access to TTL,
-     * record class, or other DNS message fields, use ExecutorInterface instead.
+     * - MX: array[] - Structured data with priority and target
+     *   Example: [['priority' => 10, 'target' => 'mail.example.com'], ['priority' => 20, 'target' => 'mail2.example.com']]
+     *
+     * - TXT: array[] - Arrays of text strings
+     *   Example: [['v=spf1 include:_spf.example.com ~all'], ['google-site-verification=...']]
+     *
+     * - SRV: array[] - Structured data with priority, weight, port, and target
+     *   Example: [['priority' => 10, 'weight' => 5, 'port' => 5222, 'target' => 'xmpp.example.com']]
+     *
+     * - SOA: array[] - Structured data with all SOA fields
+     *   Example: [['mname' => 'ns1.example.com', 'rname' => 'admin.example.com', 'serial' => 2024011501, ...]]
+     *
+     * - CAA: array[] - Structured data with flags, tag, and value
+     *   Example: [['flags' => 0, 'tag' => 'issue', 'value' => 'letsencrypt.org']]
+     *
+     * The returned data format matches the DNS record's RDATA structure. Simple record types
+     * (A, AAAA, NS, PTR, CNAME) return strings, while complex types (MX, SRV, SOA, CAA, TXT)
+     * return structured arrays with their relevant fields.
      *
      * Behavior:
      * - Returns ALL matching records (not just the first)
-     * - Returns empty array if no records of the specified type exist
-     * - Rejects only on network/protocol errors, not on NXDOMAIN
+     * - Rejects if no records of the specified type exist (throws RecordNotFoundException)
+     * - Rejects on network/protocol errors
      *
      * Common use cases:
      * - Load balancing across multiple IPs (A/AAAA records)
@@ -101,19 +113,16 @@ interface ResolverInterface
      * - Domain ownership verification (TXT records)
      * - IPv6 address resolution (AAAA records)
      * - Nameserver lookups (NS records)
+     * - Service discovery (SRV records)
      *
      * @param string $domain The domain name to query (e.g., "example.com")
      * @param RecordType $type The DNS record type to retrieve (A, AAAA, MX, TXT, CNAME, NS, etc.)
      *
      * @return PromiseInterface<list<mixed>> A promise that:
-     *                                        - Resolves with an array of record values as strings
-     *                                        - Array is empty if no records of that type exist
+     *                                        - Resolves with an array of record values (strings or arrays depending on type)
+     *                                        - Rejects with RecordNotFoundException if no records found
      *                                        - Rejects with QueryFailedException on network/DNS errors
      *                                        - Rejects with TimeoutException if query exceeds time limit
-     *                                        - Values are formatted as human-readable strings, not raw bytes
-     *
-     * @see RecordType For available DNS record types
-     * @see resolve() For simple single-IP lookups
      */
     public function resolveAll(string $domain, RecordType $type): PromiseInterface;
 }

@@ -17,6 +17,20 @@ use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use InvalidArgumentException;
 
+/**
+ * Executes DNS queries over UDP transport.
+ *
+ * UDP is the standard transport for DNS because it's fast and connectionless.
+ * However, it has a 512-byte limit and is unreliable (no guaranteed delivery).
+ * Responses exceeding this limit will be truncated and should be retried via TCP.
+ *
+ * This executor does NOT implement timeouts or retries - wrap it with
+ * TimeoutExecutor and RetryExecutor for production use.
+ *
+ * @see SelectiveTransportExecutor For automatic UDP/TCP fallback on truncation
+ * @see TimeoutExecutor For timeout support
+ * @see RetryExecutor For retry logic
+ */
 final class UdpTransportExecutor implements ExecutorInterface
 {
     private readonly string $nameserver;

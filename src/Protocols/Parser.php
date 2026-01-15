@@ -139,6 +139,9 @@ final class Parser
             RecordType::TXT => $this->parseTxt($rdataRaw),
             RecordType::MX => $this->parseMx($data, $rdataOffset),
             RecordType::SOA => $this->parseSoa($data, $rdataOffset),
+            RecordType::SRV => $this->parseSrv($data, $rdataOffset),
+            RecordType::CAA => $this->parseCaa($rdataRaw),
+            RecordType::SSHFP => $this->parseSshfp($rdataRaw),
             default => $rdataRaw
         };
 
@@ -288,11 +291,92 @@ final class Parser
     }
 
     /**
+     * Parse SRV record (RFC 2782)
+     * Format: priority (2 bytes) + weight (2 bytes) + port (2 bytes) + target (domain name)
+     *
+     * @return array{priority: int, weight: int, port: int, target: string}
+     */
+    private function parseSrv(string $data, int $offset): array
+    {
+        // SRV record must be at least 6 bytes (priority + weight + port) + domain name
+        if (! isset($data[$offset + 5])) {
+            throw new InvalidArgumentException('SRV record too short');
+        }
+
+        $values = unpack('npriority/nweight/nport', substr($data, $offset, 6));
+        if ($values === false) {
+            throw new InvalidArgumentException('Invalid SRV values');
+        }
+
+        [$target] = $this->readName($data, $offset + 6);
+
+        return [
+            'priority' => $this->ensureInt($values['priority']),
+            'weight' => $this->ensureInt($values['weight']),
+            'port' => $this->ensureInt($values['port']),
+            'target' => $target,
+        ];
+    }
+
+    /**
+     * Parse CAA record (RFC 6844/8659)
+     * Format: flags (1 byte) + tag length (1 byte) + tag (variable) + value (variable)
+     *
+     * @return array{flags: int, tag: string, value: string}
+     */
+    private function parseCaa(string $data): array
+    {
+        if (! isset($data[1])) {
+            throw new InvalidArgumentException('CAA record too short');
+        }
+
+        $flags = \ord($data[0]);
+        $tagLength = \ord($data[1]);
+
+        if (! isset($data[2 + $tagLength - 1])) {
+            throw new InvalidArgumentException('CAA tag truncated');
+        }
+
+        $tag = substr($data, 2, $tagLength);
+        $value = substr($data, 2 + $tagLength);
+
+        return [
+            'flags' => $flags,
+            'tag' => $tag,
+            'value' => $value,
+        ];
+    }
+
+    /**
+     * Parse SSHFP record (RFC 4255)
+     * Format: algorithm (1 byte) + fingerprint type (1 byte) + fingerprint (variable, hex)
+     *
+     * @return array{algorithm: int, fptype: int, fingerprint: string}
+     */
+    private function parseSshfp(string $data): array
+    {
+        if (! isset($data[1])) {
+            throw new InvalidArgumentException('SSHFP record too short');
+        }
+
+        $algorithm = \ord($data[0]);
+        $fpType = \ord($data[1]);
+        $fingerprint = bin2hex(substr($data, 2));
+
+        return [
+            'algorithm' => $algorithm,
+            'fptype' => $fpType,
+            'fingerprint' => $fingerprint,
+        ];
+    }
+
+    /**
      * @param mixed $value
      */
     private function ensureInt($value): int
     {
         assert(\is_int($value));
+
         return $value;
     }
 
@@ -302,6 +386,7 @@ final class Parser
         if ($result === false) {
             throw new InvalidArgumentException('Invalid IP address binary data');
         }
+
         return $result;
     }
 }

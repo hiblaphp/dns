@@ -103,7 +103,7 @@ final class Dns
      *
      * @param  string  $domain  Domain name to resolve
      * @param  RecordType  $type  Record type to query
-     * @return PromiseInterface<array<RecordType, string>> Promise that resolves to an array of records
+     * @return PromiseInterface<list<mixed>> Promise that resolves to a list of records
      */
     public static function resolveAll(string $domain, RecordType $type = RecordType::A): PromiseInterface
     {
@@ -132,7 +132,7 @@ final class Dns
      */
     public function withNameservers(string|array $nameservers): static
     {
-        $nameservers = \is_string($nameservers) ? [$nameservers] : $nameservers;
+        $nameservers = \is_string($nameservers) ? [$nameservers] : array_values($nameservers);
 
         return $this->withConfig(new Config($nameservers));
     }

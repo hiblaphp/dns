@@ -19,6 +19,20 @@ use Hibla\Stream\DuplexResourceStream;
 use InvalidArgumentException;
 use Random\Randomizer;
 
+/**
+ * Executes DNS queries over TCP transport.
+ *
+ * TCP is used when UDP responses are truncated (>512 bytes) or for operations
+ * requiring reliable delivery like zone transfers. Unlike UDP, TCP requires
+ * connection setup overhead but supports unlimited message sizes.
+ *
+ * This executor maintains a persistent connection and pipelines multiple queries
+ * over the same socket for efficiency. Queries are queued during connection setup
+ * and sent once the connection is established.
+ *
+ * @see UdpTransportExecutor For standard UDP transport
+ * @see SelectiveTransportExecutor For automatic UDP/TCP selection
+ */
 final class TcpTransportExecutor implements ExecutorInterface
 {
     private readonly string $nameserver;

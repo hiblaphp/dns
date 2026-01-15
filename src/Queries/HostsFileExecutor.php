@@ -15,15 +15,27 @@ use Hibla\Dns\Models\Record;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 
+/**
+ * Resolves DNS queries from the local hosts file before falling back to network.
+ *
+ * Checks the system hosts file (e.g., /etc/hosts) for hostname-to-IP mappings,
+ * providing instant resolution for localhost, custom domain overrides, and
+ * blocking entries. Falls back to network DNS if no match is found.
+ *
+ * Supports both forward lookups (A/AAAA) and reverse lookups (PTR).
+ *
+ * @see HostsFile
+ */
 final class HostsFileExecutor implements ExecutorInterface
 {
     public function __construct(
         private readonly HostsFile $hosts,
         private readonly ExecutorInterface $fallback
-    ) {}
+    ) {
+    }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function query(Query $query): PromiseInterface
     {

@@ -109,6 +109,62 @@ describe('Parser', function () {
         expect($data['minimum'])->toBe(86400);
     });
 
+    it('parses SRV records', function () use ($parser, $dumper) {
+        $original = new Message();
+        $original->isResponse = true;
+        $original->answers[] = new Record('_xmpp._tcp.example.com', RecordType::SRV, RecordClass::IN, 3600, [
+            'priority' => 10,
+            'weight' => 5,
+            'port' => 5222,
+            'target' => 'xmpp.example.com',
+        ]);
+
+        $binary = $dumper->toBinary($original);
+        $parsed = $parser->parseMessage($binary);
+
+        $data = $parsed->answers[0]->data;
+        expect($data['priority'])->toBe(10);
+        expect($data['weight'])->toBe(5);
+        expect($data['port'])->toBe(5222);
+        expect($data['target'])->toBe('xmpp.example.com');
+    });
+
+    it('parses CAA records', function () use ($parser, $dumper) {
+        $original = new Message();
+        $original->isResponse = true;
+        $original->answers[] = new Record('example.com', RecordType::CAA, RecordClass::IN, 3600, [
+            'flags' => 0,
+            'tag' => 'issue',
+            'value' => 'letsencrypt.org',
+        ]);
+
+        $binary = $dumper->toBinary($original);
+        $parsed = $parser->parseMessage($binary);
+
+        $data = $parsed->answers[0]->data;
+        expect($data['flags'])->toBe(0);
+        expect($data['tag'])->toBe('issue');
+        expect($data['value'])->toBe('letsencrypt.org');
+    });
+
+    it('parses SSHFP records', function () use ($parser, $dumper) {
+        $original = new Message();
+        $original->isResponse = true;
+        $original->answers[] = new Record('host.example.com', RecordType::SSHFP, RecordClass::IN, 3600, [
+            'algorithm' => 1,
+            'fptype' => 1,
+            'fingerprint' => '123456789abcdef0123456789abcdef012345678',
+        ]);
+
+        $binary = $dumper->toBinary($original);
+        $parsed = $parser->parseMessage($binary);
+
+        $data = $parsed->answers[0]->data;
+        expect($data['algorithm'])->toBe(1);
+        expect($data['fptype'])->toBe(1);
+        expect($data['fingerprint'])->toBe('123456789abcdef0123456789abcdef012345678');
+    });
+
     it('handles DNS compression pointers correctly', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0, 2, 0, 0, 0);
 

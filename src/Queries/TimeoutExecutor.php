@@ -12,15 +12,25 @@ use Hibla\EventLoop\Loop;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 
+/**
+ * Adds timeout protection to DNS queries.
+ *
+ * Wraps another executor and enforces a maximum wait time for responses.
+ * Essential for preventing indefinite hangs when DNS servers are unreachable
+ * or unresponsive. Automatically cancels the underlying query on timeout.
+ *
+ * @see RetryExecutor Often used together for reliability
+ */
 final class TimeoutExecutor implements ExecutorInterface
 {
     public function __construct(
         private readonly ExecutorInterface $executor,
         private readonly float $timeout
-    ) {}
+    ) {
+    }
 
     /**
-     * @inheritDoc
+     * {@inheritdoc}
      */
     public function query(Query $query): PromiseInterface
     {
