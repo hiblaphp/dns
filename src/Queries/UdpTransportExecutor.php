@@ -41,23 +41,9 @@ final class UdpTransportExecutor implements ExecutorInterface
 
     private const int MAX_UDP_PACKET_SIZE = 512;
 
-    /**
-     * @param  string  $nameserver  IP address of the nameserver (e.g. "8.8.8.8" or "8.8.8.8:53")
-     */
     public function __construct(string $nameserver)
     {
-        if (! str_contains($nameserver, '://')) {
-            $nameserver = 'udp://'.$nameserver;
-        } elseif (! str_starts_with($nameserver, 'udp://')) {
-            throw new InvalidArgumentException('Only udp:// scheme is supported');
-        }
-
-        $parts = parse_url($nameserver);
-        if (! isset($parts['port'])) {
-            $nameserver .= ':53';
-        }
-
-        $this->nameserver = $nameserver;
+        $this->nameserver = $this->normalizeNameserver($nameserver, 'udp');
         $this->parser = new Parser();
         $this->dumper = new BinaryDumper();
     }
@@ -76,7 +62,7 @@ final class UdpTransportExecutor implements ExecutorInterface
             ));
         }
 
-        set_error_handler(fn () => true);
+        set_error_handler(fn() => true);
 
         $socket = @stream_socket_client(
             $this->nameserver,
@@ -156,5 +142,35 @@ final class UdpTransportExecutor implements ExecutorInterface
         $promise->onCancel($cleanup);
 
         return $promise;
+    }
+
+    private function normalizeNameserver(string $nameserver, string $scheme): string
+    {
+        if (str_contains($nameserver, '://')) {
+            if (!str_starts_with($nameserver, $scheme . '://')) {
+                throw new InvalidArgumentException("Only {$scheme}:// scheme is supported");
+            }
+        } else {
+            $binaryIp = @inet_pton($nameserver);
+
+            if ($binaryIp !== false) {
+                if (\strlen($binaryIp) === 16) {
+                    // IPv6 - wrap in brackets
+                    $nameserver = "{$scheme}://[{$nameserver}]";
+                } else {
+                    // IPv4
+                    $nameserver = "{$scheme}://{$nameserver}";
+                }
+            } else {
+                $nameserver = "{$scheme}://{$nameserver}";
+            }
+        }
+
+        $parts = parse_url($nameserver);
+        if (!isset($parts['port'])) {
+            $nameserver .= ':53';
+        }
+
+        return $nameserver;
     }
 }

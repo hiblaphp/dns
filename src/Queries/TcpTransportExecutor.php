@@ -57,18 +57,7 @@ final class TcpTransportExecutor implements ExecutorInterface
 
     public function __construct(string $nameserver)
     {
-        if (! str_contains($nameserver, '://')) {
-            $nameserver = 'tcp://'.$nameserver;
-        } elseif (! str_starts_with($nameserver, 'tcp://')) {
-            throw new InvalidArgumentException('Only tcp:// scheme is supported');
-        }
-
-        $parts = parse_url($nameserver);
-        if (! isset($parts['port'])) {
-            $nameserver .= ':53';
-        }
-
-        $this->nameserver = $nameserver;
+        $this->nameserver = $this->normalizeNameserver($nameserver, 'tcp');
         $this->parser = new Parser();
         $this->dumper = new BinaryDumper();
         $this->randomizer = new Randomizer();
@@ -92,7 +81,7 @@ final class TcpTransportExecutor implements ExecutorInterface
         }
 
         // Framing: [Length (2 bytes)] + [Data]
-        $packet = pack('n', $length).$queryData;
+        $packet = pack('n', $length) . $queryData;
 
         /** @var Promise<Message> $promise */
         $promise = new Promise();
@@ -141,7 +130,7 @@ final class TcpTransportExecutor implements ExecutorInterface
     {
         $this->connecting = true;
 
-        set_error_handler(fn () => true);
+        set_error_handler(fn() => true);
 
         $socket = @stream_socket_client(
             $this->nameserver,
@@ -255,6 +244,36 @@ final class TcpTransportExecutor implements ExecutorInterface
             $pending['promise']->reject($exception);
         }
         $this->pendingConnection = [];
+    }
+
+    private function normalizeNameserver(string $nameserver, string $scheme): string
+    {
+        if (str_contains($nameserver, '://')) {
+            if (!str_starts_with($nameserver, $scheme . '://')) {
+                throw new InvalidArgumentException("Only {$scheme}:// scheme is supported");
+            }
+        } else {
+            $binaryIp = @inet_pton($nameserver);
+
+            if ($binaryIp !== false) {
+                if (\strlen($binaryIp) === 16) {
+                    // IPv6 - wrap in brackets
+                    $nameserver = "{$scheme}://[{$nameserver}]";
+                } else {
+                    // IPv4
+                    $nameserver = "{$scheme}://{$nameserver}";
+                }
+            } else {
+                $nameserver = "{$scheme}://{$nameserver}";
+            }
+        }
+
+        $parts = parse_url($nameserver);
+        if (!isset($parts['port'])) {
+            $nameserver .= ':53';
+        }
+
+        return $nameserver;
     }
 
     public function __destruct()
