@@ -69,10 +69,10 @@ final class SelectiveTransportExecutor implements ExecutorInterface
         $tcpPromise = $this->tcpExecutor->query($query);
 
         $tcpPromise->then(
-            function ($response) use ($promise) {
+            onFulfilled: function ($response) use ($promise) {
                 $promise->resolve($response);
             },
-            function ($error) use ($promise) {
+            onRejected: function ($error) use ($promise) {
                 $promise->reject($error);
             }
         );

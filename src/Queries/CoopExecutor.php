@@ -64,10 +64,10 @@ final class CoopExecutor implements ExecutorInterface
 
             // Cleanup when the network request settles (success or fail)
             $networkPromise->then(
-                function () use ($key) {
+                onFulfilled: function () use ($key) {
                     unset($this->pending[$key]);
                 },
-                function () use ($key) {
+                onRejected: function () use ($key) {
                     unset($this->pending[$key]);
                 }
             );

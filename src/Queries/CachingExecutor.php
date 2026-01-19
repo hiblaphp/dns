@@ -84,14 +84,14 @@ final class CachingExecutor implements ExecutorInterface
         $networkOperation = $this->executor->query($query);
 
         $networkOperation->then(
-            function (Message $response) use ($promise, $key, $cacheError): void {
+            onFulfilled: function (Message $response) use ($promise, $key, $cacheError): void {
                 if (! $cacheError && ! $response->isTruncated) {
                     $ttl = $this->calculateTtl($response);
                     $this->cache->set($key, $response, (float) $ttl);
                 }
                 $promise->resolve($response);
             },
-            function (mixed $e) use ($promise): void {
+            onRejected: function (mixed $e) use ($promise): void {
                 $promise->reject($e);
             }
         );

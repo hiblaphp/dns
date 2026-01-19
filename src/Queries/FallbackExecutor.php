@@ -52,8 +52,8 @@ final class FallbackExecutor implements ExecutorInterface
                 $currentOperation = $this->secondary->query($query);
 
                 $currentOperation->then(
-                    fn ($response) => $promise->resolve($response),
-                    function (mixed $secondaryError) use ($promise, $primaryError) {
+                    onFulfilled: fn ($response) => $promise->resolve($response),
+                    onRejected: function (mixed $secondaryError) use ($promise, $primaryError) {
                         // Both failed. Combine error messages.
                         $errorMessage = \sprintf(
                             '%s. Fallback failed: %s',

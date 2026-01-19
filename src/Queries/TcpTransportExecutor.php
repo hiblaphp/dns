@@ -160,9 +160,9 @@ final class TcpTransportExecutor implements ExecutorInterface
         // Store socket reference for cleanup
         $this->connectingSocket = $socket;
 
-        $this->connectionWatcherId = Loop::addStreamWatcher($socket, function () use ($socket) {
+        $this->connectionWatcherId = Loop::addWriteWatcher($socket, function () use ($socket) {
             $this->handleConnectionReady($socket);
-        }, StreamWatcher::TYPE_WRITE);
+        });
     }
 
     /**
@@ -214,7 +214,7 @@ final class TcpTransportExecutor implements ExecutorInterface
     private function removeConnectionWatcher(): void
     {
         if ($this->connectionWatcherId !== null) {
-            Loop::removeStreamWatcher($this->connectionWatcherId);
+            Loop::removeWriteWatcher($this->connectionWatcherId);
             $this->connectionWatcherId = null;
         }
     }

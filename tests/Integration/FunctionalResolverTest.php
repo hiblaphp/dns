@@ -31,13 +31,10 @@ describe('Functional Resolver (Real Network)', function () {
             Loop::stop();
         }, function ($error) {
             Loop::stop();
-
             throw $error;
         });
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         expect($ip)->toBeString();
         expect(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4))->not->toBeFalse();
@@ -58,9 +55,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         if (! empty($ips)) {
             expect($ips)->toBeArray();
@@ -82,14 +77,11 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
-
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         expect($records)->toBeArray();
         expect($records)->not->toBeEmpty();
@@ -102,21 +94,18 @@ describe('Functional Resolver (Real Network)', function () {
         $resolver = Dns::create();
 
         $records = null;
-        $resolver->resolveAll('google.com', RecordType::TXT)->then(
+        $resolver->resolveAll('cloudflare.com', RecordType::TXT)->then(
             function ($result) use (&$records) {
                 $records = $result;
                 Loop::stop();
             },
             function ($error) {
                 Loop::stop();
-
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         expect($records)->toBeArray();
         expect($records)->not->toBeEmpty();
@@ -134,14 +123,11 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
-
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         expect($records)->toBeArray();
         expect($records)->not->toBeEmpty();
@@ -160,14 +146,11 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
-
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         expect($ip)->toBeString();
         expect(filter_var($ip, FILTER_VALIDATE_IP))->not->toBeFalse();
@@ -177,8 +160,7 @@ describe('Functional Resolver (Real Network)', function () {
         $resolver = Dns::new()
             ->withNameservers('8.8.8.8')
             ->withCache()
-            ->build()
-        ;
+            ->build();
 
         $step1Done = false;
         $step2Done = false;
@@ -209,9 +191,7 @@ describe('Functional Resolver (Real Network)', function () {
             });
         });
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         expect($step1Done)->toBeTrue();
         expect($step2Done)->toBeTrue();
@@ -221,8 +201,7 @@ describe('Functional Resolver (Real Network)', function () {
     it('fails gracefully for non-existent domains (NXDOMAIN)', function () {
         $resolver = Dns::new()
             ->withNameservers('8.8.8.8')
-            ->build()
-        ;
+            ->build();
 
         $error = null;
         $successResult = null;
@@ -238,9 +217,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(20.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(20.0);
 
         expect($successResult)->toBeNull();
         expect($error)->not->toBeNull();
@@ -264,9 +241,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(20.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(20.0);
 
         expect($error)->toBeInstanceOf(RecordNotFoundException::class);
     });
@@ -274,8 +249,7 @@ describe('Functional Resolver (Real Network)', function () {
     it('uses fallback nameserver when primary fails', function () {
         $resolver = Dns::new()
             ->withNameservers(['192.0.2.1', '8.8.8.8'])
-            ->build()
-        ;
+            ->build();
 
         $ip = null;
         $resolver->resolve('google.com')->then(
@@ -285,14 +259,11 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
-
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(20.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(20.0);
 
         expect($ip)->toBeString();
         expect(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4))->not->toBeFalse();
@@ -301,8 +272,7 @@ describe('Functional Resolver (Real Network)', function () {
     it('works with Cloudflare Dns (1.1.1.1)', function () {
         $resolver = Dns::new()
             ->withNameservers('1.1.1.1')
-            ->build()
-        ;
+            ->build();
 
         $ip = null;
         $resolver->resolve('cloudflare.com')->then(
@@ -312,14 +282,11 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
-
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         expect($ip)->toBeString();
         expect(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4))->not->toBeFalse();
@@ -328,8 +295,7 @@ describe('Functional Resolver (Real Network)', function () {
     it('handles multiple parallel requests', function () {
         $resolver = Dns::new()
             ->withCache()
-            ->build()
-        ;
+            ->build();
 
         $results = [
             'google' => null,
@@ -360,9 +326,7 @@ describe('Functional Resolver (Real Network)', function () {
             $checkCompletion();
         });
 
-        $timer = Loop::addTimer(10.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(10.0);
 
         expect($results['google'])->toBeString();
         expect($results['cloudflare'])->toBeString();
@@ -389,9 +353,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         expect($result)->not->toBeNull();
     });
@@ -400,8 +362,7 @@ describe('Functional Resolver (Real Network)', function () {
         $resolver = Dns::new()
             ->withTimeout(3.0)
             ->withRetries(0)
-            ->build()
-        ;
+            ->build();
 
         $longDomain = str_repeat('a', 50) . '.' . str_repeat('b', 50) . '.com';
 
@@ -417,8 +378,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
+        run_with_timeout(5.0);
 
         expect($error)->not->toBeNull();
         expect($error)->toBeInstanceOf(Throwable::class);
@@ -429,21 +389,19 @@ describe('Functional Resolver (Real Network)', function () {
             ->withNameservers('192.0.2.1')
             ->withTimeout(3.0)
             ->withRetries(0)
-            ->build()
-        ;
+            ->build();
 
         $error = null;
 
         $resolver->resolve('google.com')->then(
-            fn ($r) => Loop::stop(),
+            fn($r) => Loop::stop(),
             function ($e) use (&$error) {
                 $error = $e;
                 Loop::stop();
             }
         );
 
-        Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
+        run_with_timeout(5.0);
 
         expect($error)->toBeInstanceOf(Hibla\Dns\Exceptions\TimeoutException::class);
     });
@@ -459,14 +417,11 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
-
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         expect($records)->toBeArray();
         expect($records)->not->toBeEmpty();
@@ -484,14 +439,11 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
-
                 throw $error;
             }
         );
 
-        $timer = Loop::addTimer(2.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(2.0);
 
         expect($ip)->toBe('127.0.0.1');
     });
@@ -513,9 +465,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         if (! empty($records)) {
             expect($records)->toBeArray();
@@ -542,9 +492,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(6.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(6.0);
 
         expect($records)->toBeArray();
 
@@ -555,7 +503,7 @@ describe('Functional Resolver (Real Network)', function () {
             expect($records[0]['weight'])->toBeInt();
             expect($records[0]['port'])->toBeInt();
             expect($records[0]['target'])->toBeString();
-            expect($records[0]['target'])->toMatch('/\./'); // Should be a domain name
+            expect($records[0]['target'])->toMatch('/\./');
         }
     });
 
@@ -574,9 +522,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         if (! empty($records)) {
             expect($records)->toBeArray();
@@ -585,10 +531,8 @@ describe('Functional Resolver (Real Network)', function () {
             expect($records[0]['flags'])->toBeInt();
             expect($records[0]['tag'])->toBeString();
             expect($records[0]['value'])->toBeString();
-
             expect($records[0]['tag'])->toBeIn(['issue', 'issuewild', 'iodef']);
         } else {
-            // Some domains might not have CAA records
             expect($records)->toBeArray();
         }
     });
@@ -608,9 +552,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         if (! empty($records)) {
             expect($records)->toBeArray();
@@ -619,15 +561,11 @@ describe('Functional Resolver (Real Network)', function () {
             expect($records[0]['algorithm'])->toBeInt();
             expect($records[0]['fptype'])->toBeInt();
             expect($records[0]['fingerprint'])->toBeString();
-
             expect($records[0]['algorithm'])->toBeGreaterThanOrEqual(1);
             expect($records[0]['algorithm'])->toBeLessThanOrEqual(4);
-
             expect($records[0]['fptype'])->toBeIn([1, 2]);
-
             expect($records[0]['fingerprint'])->toMatch('/^[a-fA-F0-9]+$/');
         } else {
-            // Not all domains have SSHFP records
             expect($records)->toBeArray();
         }
     });
@@ -647,9 +585,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         if (! empty($records)) {
             expect($records)->toBeArray();
@@ -683,9 +619,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(6.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(6.0);
 
         expect($records)->toBeArray();
 
@@ -714,9 +648,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         if ($error !== null) {
             expect($error)->toBeInstanceOf(RecordNotFoundException::class);
@@ -741,9 +673,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         );
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         if (! empty($records)) {
             expect($records)->toBeArray();
@@ -781,9 +711,7 @@ describe('Functional Resolver (Real Network)', function () {
             }
         });
 
-        $timer = Loop::addTimer(5.0, fn () => Loop::stop());
-        Loop::run();
-        Loop::cancelTimer($timer);
+        run_with_timeout(5.0);
 
         expect($result1)->toBeString();
         expect($result2)->toBeString();
