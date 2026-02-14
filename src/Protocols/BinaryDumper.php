@@ -109,7 +109,9 @@ final class BinaryDumper
         $data = '';
 
         foreach ($labels as $label) {
-            $data .= \chr(\strlen($label)).$label;
+            $length = \strlen($label);
+            assert($length <= 255, 'Label length must not exceed 255');
+            $data .= \chr($length).$label;
         }
 
         return $data."\0";
@@ -122,7 +124,9 @@ final class BinaryDumper
     {
         $data = '';
         foreach ($texts as $text) {
-            $data .= \chr(\strlen($text)).$text;
+            $length = \strlen($text);
+            assert($length <= 255, 'Text length must not exceed 255');
+            $data .= \chr($length).$text;
         }
 
         return $data;
@@ -169,9 +173,14 @@ final class BinaryDumper
     {
         $tag = $data['tag'];
         $value = $data['value'];
+        $flags = (int) $data['flags'];
+        $tagLength = \strlen($tag);
 
-        return \chr((int) $data['flags'])
-            .\chr(\strlen($tag))
+        assert($flags <= 255, 'CAA flags must not exceed 255');
+        assert($tagLength <= 255, 'CAA tag length must not exceed 255');
+
+        return \chr($flags & 0xFF)
+            .\chr($tagLength)
             .$tag
             .$value;
     }
@@ -187,8 +196,14 @@ final class BinaryDumper
             $fingerprint = '';
         }
 
-        return \chr((int) $data['algorithm'])
-            .\chr((int) $data['fptype'])
+        $algorithm = (int) $data['algorithm'];
+        $fptype = (int) $data['fptype'];
+
+        assert($algorithm <= 255, 'SSHFP algorithm must not exceed 255');
+        assert($fptype <= 255, 'SSHFP fptype must not exceed 255');
+
+        return \chr($algorithm & 0xFF)
+            .\chr($fptype & 0xFF)
             .$fingerprint;
     }
 

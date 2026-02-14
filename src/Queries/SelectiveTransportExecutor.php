@@ -41,10 +41,8 @@ final class SelectiveTransportExecutor implements ExecutorInterface
         $currentOperation = $this->udpExecutor->query($query);
 
         $currentOperation->then(
-            onFulfilled: function ($response) use ($promise) {
-                $promise->resolve($response);
-            },
-            onRejected: function (mixed $e) use ($query, $promise, &$currentOperation) {
+            onFulfilled: $promise->resolve(...),
+            onRejected: function (\Throwable $e) use ($query, $promise, &$currentOperation) {
                 if ($e instanceof ResponseTruncatedException) {
                     $currentOperation = $this->retryWithTcp($query, $promise);
                 } else {
@@ -69,12 +67,8 @@ final class SelectiveTransportExecutor implements ExecutorInterface
         $tcpPromise = $this->tcpExecutor->query($query);
 
         $tcpPromise->then(
-            function ($response) use ($promise) {
-                $promise->resolve($response);
-            },
-            function ($error) use ($promise) {
-                $promise->reject($error);
-            }
+            onFulfilled: $promise->resolve(...),
+            onRejected: $promise->reject(...)
         );
 
         return $tcpPromise;

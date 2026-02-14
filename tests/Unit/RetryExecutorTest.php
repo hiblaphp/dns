@@ -10,7 +10,7 @@ use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
 use Hibla\Dns\Queries\RetryExecutor;
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\Exceptions\PromiseCancelledException;
+use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Promise;
 
 describe('RetryExecutor', function () {
@@ -98,7 +98,7 @@ describe('RetryExecutor', function () {
         try {
             $promise->wait();
         } catch (Throwable $e) {
-            expect($e)->toBeInstanceOf(PromiseCancelledException::class);
+            expect($e)->toBeInstanceOf(CancelledException::class);
         }
     });
 
@@ -292,7 +292,7 @@ describe('RetryExecutor', function () {
         try {
             $promise->wait();
         } catch (Throwable $e) {
-            expect($e)->toBeInstanceOf(PromiseCancelledException::class);
+            expect($e)->toBeInstanceOf(CancelledException::class);
         }
     });
 

@@ -58,11 +58,11 @@ final class TimeoutExecutor implements ExecutorInterface
         });
 
         $pendingPromise->then(
-            function ($response) use ($promise, $cleanup) {
+            onFulfilled: function ($response) use ($promise, $cleanup) {
                 $cleanup();
                 $promise->resolve($response);
             },
-            function (mixed $e) use ($promise, $cleanup) {
+            onRejected: function (mixed $e) use ($promise, $cleanup) {
                 $cleanup();
                 $promise->reject($e);
             }

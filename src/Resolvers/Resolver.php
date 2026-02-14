@@ -31,7 +31,7 @@ final class Resolver implements ResolverInterface
     public function resolve(string $domain): PromiseInterface
     {
         return $this->resolveAll($domain, RecordType::A)
-            ->then(function (array $ips): string {
+            ->then(onFulfilled: function (array $ips): string {
                 if (\count($ips) === 0) {
                     throw new RecordNotFoundException('No IP addresses found');
                 }
@@ -54,14 +54,7 @@ final class Resolver implements ResolverInterface
 
         return $this->executor->query($query)
             ->then(
-                fn (Message $response) => $this->extractValues($query, $response),
-                function (mixed $error) {
-                    if ($error instanceof \Throwable) {
-                        throw $error;
-                    }
-
-                    throw new \RuntimeException('Unknown error occurred');
-                }
+                onFulfilled: fn (Message $response) => $this->extractValues($query, $response)
             )
         ;
     }

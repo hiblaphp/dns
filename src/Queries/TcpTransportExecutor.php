@@ -12,7 +12,6 @@ use Hibla\Dns\Models\Query;
 use Hibla\Dns\Protocols\BinaryDumper;
 use Hibla\Dns\Protocols\Parser;
 use Hibla\EventLoop\Loop;
-use Hibla\EventLoop\ValueObjects\StreamWatcher;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use Hibla\Stream\DuplexResourceStream;
@@ -130,7 +129,7 @@ final class TcpTransportExecutor implements ExecutorInterface
     {
         $this->connecting = true;
 
-        set_error_handler(fn() => true);
+        set_error_handler(fn () => true);
 
         $socket = @stream_socket_client(
             $this->nameserver,
@@ -160,9 +159,9 @@ final class TcpTransportExecutor implements ExecutorInterface
         // Store socket reference for cleanup
         $this->connectingSocket = $socket;
 
-        $this->connectionWatcherId = Loop::addStreamWatcher($socket, function () use ($socket) {
+        $this->connectionWatcherId = Loop::addWriteWatcher($socket, function () use ($socket) {
             $this->handleConnectionReady($socket);
-        }, StreamWatcher::TYPE_WRITE);
+        });
     }
 
     /**
@@ -214,7 +213,7 @@ final class TcpTransportExecutor implements ExecutorInterface
     private function removeConnectionWatcher(): void
     {
         if ($this->connectionWatcherId !== null) {
-            Loop::removeStreamWatcher($this->connectionWatcherId);
+            Loop::removeWriteWatcher($this->connectionWatcherId);
             $this->connectionWatcherId = null;
         }
     }
@@ -249,7 +248,7 @@ final class TcpTransportExecutor implements ExecutorInterface
     private function normalizeNameserver(string $nameserver, string $scheme): string
     {
         if (str_contains($nameserver, '://')) {
-            if (!str_starts_with($nameserver, $scheme . '://')) {
+            if (! str_starts_with($nameserver, $scheme . '://')) {
                 throw new InvalidArgumentException("Only {$scheme}:// scheme is supported");
             }
         } else {
@@ -269,7 +268,7 @@ final class TcpTransportExecutor implements ExecutorInterface
         }
 
         $parts = parse_url($nameserver);
-        if (!isset($parts['port'])) {
+        if (! isset($parts['port'])) {
             $nameserver .= ':53';
         }
 

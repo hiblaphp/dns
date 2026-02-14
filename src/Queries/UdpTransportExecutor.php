@@ -12,7 +12,6 @@ use Hibla\Dns\Models\Query;
 use Hibla\Dns\Protocols\BinaryDumper;
 use Hibla\Dns\Protocols\Parser;
 use Hibla\EventLoop\Loop;
-use Hibla\EventLoop\ValueObjects\StreamWatcher;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use InvalidArgumentException;
@@ -62,7 +61,7 @@ final class UdpTransportExecutor implements ExecutorInterface
             ));
         }
 
-        set_error_handler(fn() => true);
+        set_error_handler(fn () => true);
 
         $socket = @stream_socket_client(
             $this->nameserver,
@@ -97,7 +96,7 @@ final class UdpTransportExecutor implements ExecutorInterface
 
         $cleanup = function () use ($socket, &$watcherId): void {
             if ($watcherId !== null) {
-                Loop::removeStreamWatcher($watcherId);
+                Loop::removeReadWatcher($watcherId);
                 $watcherId = null;
             }
             if (\is_resource($socket)) {
@@ -105,7 +104,7 @@ final class UdpTransportExecutor implements ExecutorInterface
             }
         };
 
-        $watcherId = Loop::addStreamWatcher(
+        $watcherId = Loop::addReadWatcher(
             $socket,
             function () use ($socket, $promise, $message, $cleanup, $query) {
                 $data = fread($socket, self::MAX_UDP_PACKET_SIZE);
@@ -135,8 +134,7 @@ final class UdpTransportExecutor implements ExecutorInterface
 
                 $cleanup();
                 $promise->resolve($response);
-            },
-            StreamWatcher::TYPE_READ
+            }
         );
 
         $promise->onCancel($cleanup);
@@ -147,7 +145,7 @@ final class UdpTransportExecutor implements ExecutorInterface
     private function normalizeNameserver(string $nameserver, string $scheme): string
     {
         if (str_contains($nameserver, '://')) {
-            if (!str_starts_with($nameserver, $scheme . '://')) {
+            if (! str_starts_with($nameserver, $scheme . '://')) {
                 throw new InvalidArgumentException("Only {$scheme}:// scheme is supported");
             }
         } else {
@@ -167,7 +165,7 @@ final class UdpTransportExecutor implements ExecutorInterface
         }
 
         $parts = parse_url($nameserver);
-        if (!isset($parts['port'])) {
+        if (! isset($parts['port'])) {
             $nameserver .= ':53';
         }
 

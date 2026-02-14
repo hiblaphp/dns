@@ -12,7 +12,6 @@ use Hibla\Dns\Models\Record;
 use Hibla\Dns\Protocols\BinaryDumper;
 use Hibla\Dns\Protocols\Parser;
 use Hibla\EventLoop\Loop;
-use Hibla\EventLoop\ValueObjects\StreamWatcher;
 use Hibla\Promise\Promise;
 use Hibla\Stream\DuplexResourceStream;
 
@@ -74,7 +73,7 @@ describe('TcpStreamHandler', function () {
         $promise = new Promise();
 
         $received = '';
-        $watcherId = Loop::addStreamWatcher($serverSock, function () use ($serverSock, &$received, $binary, &$watcherId) {
+        $watcherId = Loop::addReadWatcher($serverSock, function () use ($serverSock, &$received, $binary, &$watcherId) {
             $chunk = fread($serverSock, 1024);
             if ($chunk === false || $chunk === '') {
                 return;
@@ -82,10 +81,10 @@ describe('TcpStreamHandler', function () {
 
             $received .= $chunk;
             if (strlen($received) >= strlen($binary) + 2) {
-                Loop::removeStreamWatcher($watcherId);
+                Loop::removeReadWatcher($watcherId);
                 Loop::stop();
             }
-        }, StreamWatcher::TYPE_READ);
+        });
 
         $handler->send($packet, 12345, $promise);
 
