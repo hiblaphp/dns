@@ -63,13 +63,13 @@ final class CoopExecutor implements ExecutorInterface
             ];
 
             // Cleanup when the network request settles (success or fail)
+            $cleanup = function () use ($key) {
+                unset($this->pending[$key]);
+            };
+
             $networkPromise->then(
-                onFulfilled: function () use ($key) {
-                    unset($this->pending[$key]);
-                },
-                onRejected: function () use ($key) {
-                    unset($this->pending[$key]);
-                }
+                onFulfilled: $cleanup,
+                onRejected: $cleanup
             );
         }
 
@@ -79,8 +79,8 @@ final class CoopExecutor implements ExecutorInterface
         $userPromise = new Promise();
 
         $networkPromise->then(
-            fn ($response) => $userPromise->resolve($response),
-            fn ($error) => $userPromise->reject($error)
+            $userPromise->resolve(...),
+            $userPromise->reject(...)
         );
 
         $userPromise->onCancel(function () use ($key) {

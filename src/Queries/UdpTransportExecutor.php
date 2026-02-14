@@ -61,7 +61,7 @@ final class UdpTransportExecutor implements ExecutorInterface
             ));
         }
 
-        set_error_handler(fn() => true);
+        set_error_handler(fn () => true);
 
         $socket = @stream_socket_client(
             $this->nameserver,
@@ -145,7 +145,7 @@ final class UdpTransportExecutor implements ExecutorInterface
     private function normalizeNameserver(string $nameserver, string $scheme): string
     {
         if (str_contains($nameserver, '://')) {
-            if (!str_starts_with($nameserver, $scheme . '://')) {
+            if (! str_starts_with($nameserver, $scheme . '://')) {
                 throw new InvalidArgumentException("Only {$scheme}:// scheme is supported");
             }
         } else {
@@ -165,7 +165,7 @@ final class UdpTransportExecutor implements ExecutorInterface
         }
 
         $parts = parse_url($nameserver);
-        if (!isset($parts['port'])) {
+        if (! isset($parts['port'])) {
             $nameserver .= ':53';
         }
 

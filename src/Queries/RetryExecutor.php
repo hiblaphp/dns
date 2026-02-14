@@ -9,6 +9,7 @@ use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
+use Throwable;
 
 /**
  * Retries failed DNS queries automatically.
@@ -43,10 +44,8 @@ final class RetryExecutor implements ExecutorInterface
             $currentPendingOperation = $this->executor->query($query);
 
             $currentPendingOperation->then(
-                onFulfilled: function ($response) use ($promise) {
-                    $promise->resolve($response);
-                },
-                onRejected: function (mixed $e) use ($retriesLeft, $promise, $attempt) {
+                onFulfilled: $promise->resolve(...),
+                onRejected: function (Throwable $e) use ($retriesLeft, $promise, $attempt) {
                     if ($retriesLeft > 0) {
                         $attempt($retriesLeft - 1);
                     } else {

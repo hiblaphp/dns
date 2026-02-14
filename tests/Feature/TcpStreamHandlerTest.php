@@ -12,7 +12,6 @@ use Hibla\Dns\Models\Record;
 use Hibla\Dns\Protocols\BinaryDumper;
 use Hibla\Dns\Protocols\Parser;
 use Hibla\EventLoop\Loop;
-use Hibla\EventLoop\ValueObjects\StreamWatcher;
 use Hibla\Promise\Promise;
 use Hibla\Stream\DuplexResourceStream;
 

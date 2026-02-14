@@ -31,6 +31,7 @@ describe('Functional Resolver (Real Network)', function () {
             Loop::stop();
         }, function ($error) {
             Loop::stop();
+
             throw $error;
         });
 
@@ -77,6 +78,7 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
@@ -101,6 +103,7 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
@@ -123,6 +126,7 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
@@ -146,6 +150,7 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
@@ -160,7 +165,8 @@ describe('Functional Resolver (Real Network)', function () {
         $resolver = Dns::new()
             ->withNameservers('8.8.8.8')
             ->withCache()
-            ->build();
+            ->build()
+        ;
 
         $step1Done = false;
         $step2Done = false;
@@ -201,7 +207,8 @@ describe('Functional Resolver (Real Network)', function () {
     it('fails gracefully for non-existent domains (NXDOMAIN)', function () {
         $resolver = Dns::new()
             ->withNameservers('8.8.8.8')
-            ->build();
+            ->build()
+        ;
 
         $error = null;
         $successResult = null;
@@ -249,7 +256,8 @@ describe('Functional Resolver (Real Network)', function () {
     it('uses fallback nameserver when primary fails', function () {
         $resolver = Dns::new()
             ->withNameservers(['192.0.2.1', '8.8.8.8'])
-            ->build();
+            ->build()
+        ;
 
         $ip = null;
         $resolver->resolve('google.com')->then(
@@ -259,6 +267,7 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
@@ -272,7 +281,8 @@ describe('Functional Resolver (Real Network)', function () {
     it('works with Cloudflare Dns (1.1.1.1)', function () {
         $resolver = Dns::new()
             ->withNameservers('1.1.1.1')
-            ->build();
+            ->build()
+        ;
 
         $ip = null;
         $resolver->resolve('cloudflare.com')->then(
@@ -282,6 +292,7 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
@@ -295,7 +306,8 @@ describe('Functional Resolver (Real Network)', function () {
     it('handles multiple parallel requests', function () {
         $resolver = Dns::new()
             ->withCache()
-            ->build();
+            ->build()
+        ;
 
         $results = [
             'google' => null,
@@ -362,7 +374,8 @@ describe('Functional Resolver (Real Network)', function () {
         $resolver = Dns::new()
             ->withTimeout(3.0)
             ->withRetries(0)
-            ->build();
+            ->build()
+        ;
 
         $longDomain = str_repeat('a', 50) . '.' . str_repeat('b', 50) . '.com';
 
@@ -389,12 +402,13 @@ describe('Functional Resolver (Real Network)', function () {
             ->withNameservers('192.0.2.1')
             ->withTimeout(3.0)
             ->withRetries(0)
-            ->build();
+            ->build()
+        ;
 
         $error = null;
 
         $resolver->resolve('google.com')->then(
-            fn($r) => Loop::stop(),
+            fn ($r) => Loop::stop(),
             function ($e) use (&$error) {
                 $error = $e;
                 Loop::stop();
@@ -417,6 +431,7 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );
@@ -439,6 +454,7 @@ describe('Functional Resolver (Real Network)', function () {
             },
             function ($error) {
                 Loop::stop();
+
                 throw $error;
             }
         );

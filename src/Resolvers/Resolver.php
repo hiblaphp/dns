@@ -54,14 +54,7 @@ final class Resolver implements ResolverInterface
 
         return $this->executor->query($query)
             ->then(
-                onFulfilled: fn (Message $response) => $this->extractValues($query, $response),
-                onRejected: function (mixed $error) {
-                    if ($error instanceof \Throwable) {
-                        throw $error;
-                    }
-
-                    throw new \RuntimeException('Unknown error occurred');
-                }
+                onFulfilled: fn (Message $response) => $this->extractValues($query, $response)
             )
         ;
     }
