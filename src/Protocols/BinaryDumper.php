@@ -17,10 +17,10 @@ final class BinaryDumper
     public function toBinary(Message $message): string
     {
         return $this->headerToBinary($message)
-            .$this->questionsToBinary($message->questions)
-            .$this->recordsToBinary($message->answers)
-            .$this->recordsToBinary($message->authority)
-            .$this->recordsToBinary($message->additional);
+            . $this->questionsToBinary($message->questions)
+            . $this->recordsToBinary($message->answers)
+            . $this->recordsToBinary($message->authority)
+            . $this->recordsToBinary($message->additional);
     }
 
     private function headerToBinary(Message $message): string
@@ -85,6 +85,7 @@ final class BinaryDumper
                 RecordType::SOA => $this->soaToBinary($this->ensureSoaData($record->data)),
                 RecordType::CAA => $this->caaToBinary($this->ensureCaaData($record->data)),
                 RecordType::SSHFP => $this->sshfpToBinary($this->ensureSshfpData($record->data)),
+                RecordType::NAPTR => $this->naptrToBinary($this->ensureNaptrData($record->data)),
                 // Fallback for unknown types or simple binary data
                 default => $this->ensureString($record->data),
             };
@@ -96,6 +97,36 @@ final class BinaryDumper
         }
 
         return $data;
+    }
+
+    /**
+     * @param array{order: int|string, preference: int|string, flags: string, service: string, regexp: string, replacement: string} $data
+     */
+    private function naptrToBinary(array $data): string
+    {
+        $flags = $data['flags'];
+        $service = $data['service'];
+        $regexp = $data['regexp'];
+        $replacement = $data['replacement'];
+
+        return pack('nn', (int) $data['order'], (int) $data['preference'])
+            . \chr(\strlen($flags))   . $flags
+            . \chr(\strlen($service)) . $service
+            . \chr(\strlen($regexp))  . $regexp
+            . ($replacement !== '' ? $this->domainNameToBinary($replacement) : "\x00");
+    }
+
+    /**
+     * @param mixed $value
+     * @return array{order: int|string, preference: int|string, flags: string, service: string, regexp: string, replacement: string}
+     */
+    private function ensureNaptrData($value): array
+    {
+        assert(\is_array($value));
+        assert(isset($value['order'], $value['preference'], $value['flags'], $value['service'], $value['regexp'], $value['replacement']));
+
+        /** @var array{order: int|string, preference: int|string, flags: string, service: string, regexp: string, replacement: string} */
+        return $value;
     }
 
     private function domainNameToBinary(string $host): string
@@ -111,10 +142,10 @@ final class BinaryDumper
         foreach ($labels as $label) {
             $length = \strlen($label);
             assert($length <= 255, 'Label length must not exceed 255');
-            $data .= \chr($length).$label;
+            $data .= \chr($length) . $label;
         }
 
-        return $data."\0";
+        return $data . "\0";
     }
 
     /**
@@ -126,7 +157,7 @@ final class BinaryDumper
         foreach ($texts as $text) {
             $length = \strlen($text);
             assert($length <= 255, 'Text length must not exceed 255');
-            $data .= \chr($length).$text;
+            $data .= \chr($length) . $text;
         }
 
         return $data;
@@ -137,7 +168,7 @@ final class BinaryDumper
      */
     private function mxToBinary(array $data): string
     {
-        return pack('n', (int) $data['priority']).$this->domainNameToBinary($data['target']);
+        return pack('n', (int) $data['priority']) . $this->domainNameToBinary($data['target']);
     }
 
     /**
@@ -146,7 +177,7 @@ final class BinaryDumper
     private function srvToBinary(array $data): string
     {
         return pack('nnn', (int) $data['priority'], (int) $data['weight'], (int) $data['port'])
-            .$this->domainNameToBinary($data['target']);
+            . $this->domainNameToBinary($data['target']);
     }
 
     /**
@@ -155,8 +186,8 @@ final class BinaryDumper
     private function soaToBinary(array $data): string
     {
         return $this->domainNameToBinary($data['mname'])
-            .$this->domainNameToBinary($data['rname'])
-            .pack(
+            . $this->domainNameToBinary($data['rname'])
+            . pack(
                 'NNNNN',
                 (int) $data['serial'],
                 (int) $data['refresh'],
@@ -180,9 +211,9 @@ final class BinaryDumper
         assert($tagLength <= 255, 'CAA tag length must not exceed 255');
 
         return \chr($flags & 0xFF)
-            .\chr($tagLength)
-            .$tag
-            .$value;
+            . \chr($tagLength)
+            . $tag
+            . $value;
     }
 
     /**
@@ -203,8 +234,8 @@ final class BinaryDumper
         assert($fptype <= 255, 'SSHFP fptype must not exceed 255');
 
         return \chr($algorithm & 0xFF)
-            .\chr($fptype & 0xFF)
-            .$fingerprint;
+            . \chr($fptype & 0xFF)
+            . $fingerprint;
     }
 
     /**

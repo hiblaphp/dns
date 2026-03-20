@@ -371,4 +371,104 @@ describe('BinaryDumper', function () {
         $expectedName = "\x07example\x03com\x00";
         expect($binary)->toContain($expectedName);
     });
+
+    it('dumps a NAPTR record with regexp and root replacement correctly', function () use ($dumper) {
+        $message = new Message();
+        $message->isResponse = true;
+
+        $message->answers[] = new Record(
+            name: 'example.com',
+            type: RecordType::NAPTR,
+            class: RecordClass::IN,
+            ttl: 3600,
+            data: [
+                'order'       => 100,
+                'preference'  => 10,
+                'flags'       => 'U',
+                'service'     => 'E2U+sip',
+                'regexp'      => '!^.*$!sip:info@example.com!',
+                'replacement' => '',
+            ]
+        );
+
+        $binary = $dumper->toBinary($message);
+
+        $flags   = 'U';
+        $service = 'E2U+sip';
+        $regexp  = '!^.*$!sip:info@example.com!';
+
+        $expectedRdata = pack('nn', 100, 10)
+            . chr(strlen($flags))   . $flags
+            . chr(strlen($service)) . $service
+            . chr(strlen($regexp))  . $regexp
+            . "\x00"; // root replacement
+
+        expect($binary)->toContain($expectedRdata);
+    });
+
+    it('dumps a NAPTR record with non-empty replacement domain correctly', function () use ($dumper) {
+        $message = new Message();
+        $message->isResponse = true;
+
+        $message->answers[] = new Record(
+            name: 'example.com',
+            type: RecordType::NAPTR,
+            class: RecordClass::IN,
+            ttl: 3600,
+            data: [
+                'order'       => 50,
+                'preference'  => 100,
+                'flags'       => 'S',
+                'service'     => 'SIP+D2U',
+                'regexp'      => '',
+                'replacement' => '_sip._udp.example.com',
+            ]
+        );
+
+        $binary = $dumper->toBinary($message);
+
+        $flags   = 'S';
+        $service = 'SIP+D2U';
+        $regexp  = '';
+
+        $expectedRdata = pack('nn', 50, 100)
+            . chr(strlen($flags))   . $flags
+            . chr(strlen($service)) . $service
+            . chr(strlen($regexp))  . $regexp
+            . "\x04_sip\x04_udp\x07example\x03com\x00"; // replacement domain
+
+        expect($binary)->toContain($expectedRdata);
+    });
+
+    it('dumps a NAPTR record with empty flags and service correctly', function () use ($dumper) {
+        $message = new Message();
+        $message->isResponse = true;
+
+        $message->answers[] = new Record(
+            name: 'example.com',
+            type: RecordType::NAPTR,
+            class: RecordClass::IN,
+            ttl: 300,
+            data: [
+                'order'       => 10,
+                'preference'  => 10,
+                'flags'       => '',
+                'service'     => '',
+                'regexp'      => '!^(.*)$!sip:\1@example.com!',
+                'replacement' => '',
+            ]
+        );
+
+        $binary = $dumper->toBinary($message);
+
+        $regexp = '!^(.*)$!sip:\1@example.com!';
+
+        $expectedRdata = pack('nn', 10, 10)
+            . "\x00"                          // flags length=0
+            . "\x00"                          // service length=0
+            . chr(strlen($regexp)) . $regexp  // regexp
+            . "\x00";                         // root replacement
+
+        expect($binary)->toContain($expectedRdata);
+    });
 });

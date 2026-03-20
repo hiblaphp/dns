@@ -133,19 +133,85 @@ final class Parser
         $offset += $length;
 
         $rdata = match ($type) {
-            RecordType::A => $this->parseIpAddress($rdataRaw),
+            RecordType::A    => $this->parseIpAddress($rdataRaw),
             RecordType::AAAA => $this->parseIpAddress($rdataRaw),
             RecordType::CNAME, RecordType::NS, RecordType::PTR => $this->readName($data, $rdataOffset)[0],
-            RecordType::TXT => $this->parseTxt($rdataRaw),
-            RecordType::MX => $this->parseMx($data, $rdataOffset),
-            RecordType::SOA => $this->parseSoa($data, $rdataOffset),
-            RecordType::SRV => $this->parseSrv($data, $rdataOffset),
-            RecordType::CAA => $this->parseCaa($rdataRaw),
+            RecordType::TXT  => $this->parseTxt($rdataRaw),
+            RecordType::MX   => $this->parseMx($data, $rdataOffset),
+            RecordType::SOA  => $this->parseSoa($data, $rdataOffset),
+            RecordType::SRV  => $this->parseSrv($data, $rdataOffset),
+            RecordType::CAA  => $this->parseCaa($rdataRaw),
             RecordType::SSHFP => $this->parseSshfp($rdataRaw),
+            RecordType::NAPTR => $this->parseNaptr($data, $rdataOffset),
             default => $rdataRaw
         };
 
         return [new Record($name, $type, $class, $ttl, $rdata), $offset];
+    }
+
+    /**
+     * Parse NAPTR record (RFC 2915 / RFC 3403)
+     * Format:
+     *   order      (2 bytes, uint16)
+     *   preference (2 bytes, uint16)
+     *   flags      (length-prefixed string)
+     *   service    (length-prefixed string)
+     *   regexp     (length-prefixed string)
+     *   replacement (domain name)
+     *
+     * @return array{order: int, preference: int, flags: string, service: string, regexp: string, replacement: string}
+     */
+    private function parseNaptr(string $data, int $offset): array
+    {
+        if (! isset($data[$offset + 3])) {
+            throw new InvalidArgumentException('NAPTR record too short');
+        }
+
+        $values = unpack('norder/npreference', substr($data, $offset, 4));
+        if ($values === false) {
+            throw new InvalidArgumentException('Invalid NAPTR order/preference');
+        }
+
+        $offset += 4;
+
+        // Read flags (length-prefixed string)
+        if (! isset($data[$offset])) {
+            throw new InvalidArgumentException('NAPTR flags length missing');
+        }
+        $flagsLen = \ord($data[$offset]);
+        $offset++;
+        $flags = substr($data, $offset, $flagsLen);
+        $offset += $flagsLen;
+
+        // Read service (length-prefixed string)
+        if (! isset($data[$offset])) {
+            throw new InvalidArgumentException('NAPTR service length missing');
+        }
+        $serviceLen = \ord($data[$offset]);
+        $offset++;
+        $service = substr($data, $offset, $serviceLen);
+        $offset += $serviceLen;
+
+        // Read regexp (length-prefixed string)
+        if (! isset($data[$offset])) {
+            throw new InvalidArgumentException('NAPTR regexp length missing');
+        }
+        $regexpLen = \ord($data[$offset]);
+        $offset++;
+        $regexp = substr($data, $offset, $regexpLen);
+        $offset += $regexpLen;
+
+        // Read replacement (domain name, may be compressed)
+        [$replacement] = $this->readName($data, $offset);
+
+        return [
+            'order'       => $this->ensureInt($values['order']),
+            'preference'  => $this->ensureInt($values['preference']),
+            'flags'       => $flags,
+            'service'     => $service,
+            'regexp'      => $regexp,
+            'replacement' => $replacement,
+        ];
     }
 
     /**

@@ -165,11 +165,81 @@ describe('Parser', function () {
         expect($data['fingerprint'])->toBe('123456789abcdef0123456789abcdef012345678');
     });
 
+    it('parses NAPTR records', function () use ($parser, $dumper) {
+        $original = new Message();
+        $original->isResponse = true;
+        $original->answers[] = new Record('example.com', RecordType::NAPTR, RecordClass::IN, 3600, [
+            'order'       => 100,
+            'preference'  => 10,
+            'flags'       => 'U',
+            'service'     => 'E2U+sip',
+            'regexp'      => '!^.*$!sip:info@example.com!',
+            'replacement' => '',
+        ]);
+
+        $binary = $dumper->toBinary($original);
+        $parsed = $parser->parseMessage($binary);
+
+        $data = $parsed->answers[0]->data;
+        expect($data['order'])->toBe(100);
+        expect($data['preference'])->toBe(10);
+        expect($data['flags'])->toBe('U');
+        expect($data['service'])->toBe('E2U+sip');
+        expect($data['regexp'])->toBe('!^.*$!sip:info@example.com!');
+        expect($data['replacement'])->toBe('');
+    });
+
+    it('parses NAPTR records with a non-empty replacement domain', function () use ($parser, $dumper) {
+        $original = new Message();
+        $original->isResponse = true;
+        $original->answers[] = new Record('example.com', RecordType::NAPTR, RecordClass::IN, 3600, [
+            'order'       => 50,
+            'preference'  => 100,
+            'flags'       => 'S',
+            'service'     => 'SIP+D2U',
+            'regexp'      => '',
+            'replacement' => '_sip._udp.example.com',
+        ]);
+
+        $binary = $dumper->toBinary($original);
+        $parsed = $parser->parseMessage($binary);
+
+        $data = $parsed->answers[0]->data;
+        expect($data['order'])->toBe(50);
+        expect($data['preference'])->toBe(100);
+        expect($data['flags'])->toBe('S');
+        expect($data['service'])->toBe('SIP+D2U');
+        expect($data['regexp'])->toBe('');
+        expect($data['replacement'])->toBe('_sip._udp.example.com');
+    });
+
+    it('parses NAPTR records with empty flags and service', function () use ($parser, $dumper) {
+        $original = new Message();
+        $original->isResponse = true;
+        $original->answers[] = new Record('example.com', RecordType::NAPTR, RecordClass::IN, 300, [
+            'order'       => 10,
+            'preference'  => 10,
+            'flags'       => '',
+            'service'     => '',
+            'regexp'      => '!^(.*)$!sip:\1@example.com!',
+            'replacement' => '',
+        ]);
+
+        $binary = $dumper->toBinary($original);
+        $parsed = $parser->parseMessage($binary);
+
+        $data = $parsed->answers[0]->data;
+        expect($data['flags'])->toBe('');
+        expect($data['service'])->toBe('');
+        expect($data['regexp'])->toBe('!^(.*)$!sip:\1@example.com!');
+        expect($data['replacement'])->toBe('');
+    });
+
     it('handles DNS compression pointers correctly', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0, 2, 0, 0, 0);
 
-        $data .= "\x04test\x03com\x00".pack('nn', 1, 1);
-        $data .= "\x03www\xC0\x0C".pack('nn', 1, 1);
+        $data .= "\x04test\x03com\x00" . pack('nn', 1, 1);
+        $data .= "\x03www\xC0\x0C" . pack('nn', 1, 1);
 
         $parsed = $parser->parseMessage($data);
 
@@ -181,18 +251,16 @@ describe('Parser', function () {
     it('throws InvalidArgumentException for truncated data', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0, 1, 0, 0, 0);
 
-        expect(fn () => $parser->parseMessage($data))
-            ->toThrow(InvalidArgumentException::class)
-        ;
+        expect(fn() => $parser->parseMessage($data))
+            ->toThrow(InvalidArgumentException::class);
     });
 
     it('throws InvalidArgumentException for invalid compression pointer', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0, 1, 0, 0, 0);
         $data .= "\xC3\xE7";
 
-        expect(fn () => $parser->parseMessage($data))
-            ->toThrow(InvalidArgumentException::class)
-        ;
+        expect(fn() => $parser->parseMessage($data))
+            ->toThrow(InvalidArgumentException::class);
     });
 
     it('parses header flags correctly', function () use ($parser, $dumper) {
@@ -217,7 +285,7 @@ describe('Parser', function () {
 
     it('parses the root domain "." correctly', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0, 1, 0, 0, 0);
-        $data .= "\x00".pack('nn', 1, 1);
+        $data .= "\x00" . pack('nn', 1, 1);
 
         $parsed = $parser->parseMessage($data);
 
@@ -227,7 +295,7 @@ describe('Parser', function () {
     it('handles unknown record types gracefully', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0x8000, 0, 1, 0, 0);
 
-        $record = "\x01a\x00".pack('nnNn', 999, 1, 0, 4)."\xDE\xAD\xBE\xEF";
+        $record = "\x01a\x00" . pack('nnNn', 999, 1, 0, 4) . "\xDE\xAD\xBE\xEF";
         $data .= $record;
 
         $parsed = $parser->parseMessage($data);
@@ -239,18 +307,17 @@ describe('Parser', function () {
 
     it('throws InvalidArgumentException for infinite compression loops', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0, 1, 0, 0, 0);
-        $data .= "\xC0\x0C".pack('nn', 1, 1);
+        $data .= "\xC0\x0C" . pack('nn', 1, 1);
 
-        expect(fn () => $parser->parseMessage($data))
-            ->toThrow(InvalidArgumentException::class, 'Too many compression pointers')
-        ;
+        expect(fn() => $parser->parseMessage($data))
+            ->toThrow(InvalidArgumentException::class, 'Too many compression pointers');
     });
 
     it('parses complex TXT records with multiple strings', function () use ($parser) {
         $txtData = "\x05Hello\x05World";
 
         $data = pack('nnnnnn', 1, 0x8000, 0, 1, 0, 0);
-        $data .= "\x01t\x00".pack('nnNn', 16, 1, 0, strlen($txtData)).$txtData;
+        $data .= "\x01t\x00" . pack('nnNn', 16, 1, 0, strlen($txtData)) . $txtData;
 
         $parsed = $parser->parseMessage($data);
 
@@ -259,19 +326,17 @@ describe('Parser', function () {
 
     it('throws exception if record data length is invalid', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0x8000, 0, 1, 0, 0);
-        $data .= "\x01a\x00".pack('nnNn', 1, 1, 0, 10);
+        $data .= "\x01a\x00" . pack('nnNn', 1, 1, 0, 10);
 
-        expect(fn () => $parser->parseMessage($data))
-            ->toThrow(InvalidArgumentException::class)
-        ;
+        expect(fn() => $parser->parseMessage($data))
+            ->toThrow(InvalidArgumentException::class);
     });
 
     it('throws exception if label length exceeds packet size', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0, 1, 0, 0, 0);
         $data .= "\x32";
 
-        expect(fn () => $parser->parseMessage($data))
-            ->toThrow(InvalidArgumentException::class)
-        ;
+        expect(fn() => $parser->parseMessage($data))
+            ->toThrow(InvalidArgumentException::class);
     });
 });
