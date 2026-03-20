@@ -34,11 +34,11 @@ use UnderflowException;
  * ```
  * @example Custom nameserver
  * ```php
- * $resolver = DNS::new()->withNameservers('8.8.8.8')->build();
+ * $resolver = DNS::builder()->withNameservers('8.8.8.8')->build();
  * ```
  * @example Full configuration
  * ```php
- * $resolver = DNS::new()
+ * $resolver = DNS::builder()
  *     ->withNameservers(['1.1.1.1', '8.8.8.8'])
  *     ->withTimeout(3.0)
  *     ->withRetries(2)
@@ -64,17 +64,9 @@ final class Dns
     private bool $enableCache = false;
 
     /**
-     * Private constructor - use DNS::new() to create instances.
-     */
-    private function __construct()
-    {
-        // Intentionally private - forces use of static factory methods
-    }
-
-    /**
      * Create a new DNS resolver builder.
      */
-    public static function new(): static
+    public static function builder(): static
     {
         return new self();
     }
@@ -84,7 +76,7 @@ final class Dns
      */
     public static function create(): ResolverInterface
     {
-        return static::new()->build();
+        return static::builder()->build();
     }
 
     /**

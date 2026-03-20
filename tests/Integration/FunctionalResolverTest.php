@@ -162,7 +162,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('uses caching for subsequent requests', function () {
-        $resolver = Dns::new()
+        $resolver = Dns::builder()
             ->withNameservers('8.8.8.8')
             ->withCache()
             ->build()
@@ -205,7 +205,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('fails gracefully for non-existent domains (NXDOMAIN)', function () {
-        $resolver = Dns::new()
+        $resolver = Dns::builder()
             ->withNameservers('8.8.8.8')
             ->build()
         ;
@@ -254,7 +254,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('uses fallback nameserver when primary fails', function () {
-        $resolver = Dns::new()
+        $resolver = Dns::builder()
             ->withNameservers(['192.0.2.1', '8.8.8.8'])
             ->build()
         ;
@@ -279,7 +279,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('works with Cloudflare Dns (1.1.1.1)', function () {
-        $resolver = Dns::new()
+        $resolver = Dns::builder()
             ->withNameservers('1.1.1.1')
             ->build()
         ;
@@ -304,7 +304,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('handles multiple parallel requests', function () {
-        $resolver = Dns::new()
+        $resolver = Dns::builder()
             ->withCache()
             ->build()
         ;
@@ -371,7 +371,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('resolves very long domain names (near 253 char limit)', function () {
-        $resolver = Dns::new()
+        $resolver = Dns::builder()
             ->withTimeout(3.0)
             ->withRetries(0)
             ->build()
@@ -398,7 +398,7 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('tests timeout executor with non-routable IP', function () {
-        $resolver = Dns::new()
+        $resolver = Dns::builder()
             ->withNameservers('192.0.2.1')
             ->withTimeout(3.0)
             ->withRetries(0)
@@ -704,8 +704,8 @@ describe('Functional Resolver (Real Network)', function () {
     });
 
     it('maintains cache isolation between resolver instances', function () {
-        $resolver1 = Dns::new()->withCache()->build();
-        $resolver2 = Dns::new()->withCache()->build();
+        $resolver1 = Dns::builder()->withCache()->build();
+        $resolver2 = Dns::builder()->withCache()->build();
 
         $result1 = null;
         $result2 = null;
