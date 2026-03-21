@@ -204,13 +204,16 @@ final class BinaryDumper
     {
         $tag = $data['tag'];
         $value = $data['value'];
-        $flags = (int) $data['flags'];
         $tagLength = \strlen($tag);
 
-        assert($flags <= 255, 'CAA flags must not exceed 255');
         assert($tagLength <= 255, 'CAA tag length must not exceed 255');
 
-        return \chr($flags & 0xFF)
+        /** @var int<0, 255> $flags */
+        $flags = ((int) $data['flags']) & 0xFF;
+        /** @var int<0, 255> $tagLength */
+        $tagLength = $tagLength & 0xFF;
+
+        return \chr($flags)
             . \chr($tagLength)
             . $tag
             . $value;
@@ -221,20 +224,18 @@ final class BinaryDumper
      */
     private function sshfpToBinary(array $data): string
     {
-        // Convert hex fingerprint back to binary
         $fingerprint = hex2bin($data['fingerprint']);
         if ($fingerprint === false) {
             $fingerprint = '';
         }
 
-        $algorithm = (int) $data['algorithm'];
-        $fptype = (int) $data['fptype'];
+        /** @var int<0, 255> $algorithm */
+        $algorithm = ((int) $data['algorithm']) & 0xFF;
+        /** @var int<0, 255> $fptype */
+        $fptype = ((int) $data['fptype']) & 0xFF;
 
-        assert($algorithm <= 255, 'SSHFP algorithm must not exceed 255');
-        assert($fptype <= 255, 'SSHFP fptype must not exceed 255');
-
-        return \chr($algorithm & 0xFF)
-            . \chr($fptype & 0xFF)
+        return \chr($algorithm)
+            . \chr($fptype)
             . $fingerprint;
     }
 
