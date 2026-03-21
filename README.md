@@ -789,13 +789,6 @@ or catch specific types for granular handling.
 | `TimeoutException` | The query exceeded the configured timeout. Extends `QueryFailedException` |
 | `ResponseTruncatedException` | The UDP response was truncated. Handled internally by `SelectiveTransportExecutor` — you will not normally see this unless using `UdpTransportExecutor` directly. Extends `QueryFailedException` |
 
-Note that DNS protocol-level error responses from the server (`SERVFAIL`,
-`REFUSED`, `FORMAT_ERROR`, `NOT_IMPLEMENTED`) are thrown as
-`RecordNotFoundException` rather than `QueryFailedException`. If you need to
-distinguish a server-side protocol error from a "record not found" condition,
-check the exception message or inspect the response code value via
-`$e->getCode()`, which contains the raw DNS response code integer.
-
 The exception hierarchy:
 ```
 DnsException
