@@ -29,10 +29,13 @@ resolution out of the box.
   - [Timeout](#timeout)
   - [Retries](#retries)
   - [Caching](#caching)
+  - [Reusing Resolvers](#reusing-resolvers)
+  - [Cache Key Format](#cache-key-format)
 - [Resolving Records](#resolving-records)
   - [`resolve()` — single IP address](#resolve--single-ip-address)
   - [`resolveAll()` — all records of a type](#resolveall--all-records-of-a-type)
   - [Record types and return formats](#record-types-and-return-formats)
+- [Raw Executor Usage](#raw-executor-usage)
 - [Cancellation](#cancellation)
 
 **Configuration**
@@ -238,6 +241,12 @@ If `withNameservers()` is not called, the builder loads nameservers from the
 system configuration automatically. If system configuration cannot be loaded,
 Cloudflare (`1.1.1.1`) and Google (`8.8.8.8`) are used as defaults.
 
+When three or more nameservers are configured, the fallback chain is nested.
+For three nameservers the structure is effectively
+`FallbackExecutor(FallbackExecutor(NS1, NS2), NS3)`. If all servers fail, the
+error message will contain each server's error concatenated in the chain — this
+is expected and useful for diagnosing which servers were tried.
+
 ### Timeout
 
 Sets the maximum time in seconds to wait for a response from a nameserver before
@@ -263,6 +272,19 @@ $resolver = Dns::builder()
 
 The default is 2 retries.
 
+Retries apply to network-level failures such as timeouts and connection errors.
+DNS protocol-level errors returned by the server — `SERVFAIL`, `REFUSED`,
+`FORMAT_ERROR` — arrive as valid responses and are not retried. If a nameserver
+returns `SERVFAIL` transiently, configuring multiple nameservers with
+`withNameservers()` is a more effective mitigation than increasing the retry
+count.
+
+Note that in the default pipeline, `RetryExecutor` sits inside `CoopExecutor`.
+When multiple concurrent callers request the same domain simultaneously, they
+share a single deduplicated network request and therefore share the same retry
+budget. If that single request exhausts its retries, all concurrent callers
+receive the failure at the same time.
+
 ### Caching
 
 Enables response caching. Successful responses are stored with their DNS TTL as
@@ -282,6 +304,66 @@ $resolver = Dns::builder()
 
 The custom cache must implement `Hibla\Cache\Interfaces\CacheInterface`. Caching
 is disabled by default.
+
+### Reusing Resolvers
+
+Each call to `Dns::builder()->build()` constructs a new executor pipeline,
+including a `TcpTransportExecutor` whose open sockets are only cleaned up when
+the executor is garbage-collected. In long-running applications, creating a
+resolver per request can leave TCP sockets open longer than expected if
+references are held anywhere in scope.
+
+Create the resolver once and reuse it for the lifetime of your application or
+service:
+```php
+// Good — one resolver, many queries
+$resolver = Dns::builder()
+    ->withNameservers(['1.1.1.1', '8.8.8.8'])
+    ->withCache()
+    ->build();
+
+foreach ($domains as $domain) {
+    $resolver->resolve($domain)->then(...);
+}
+
+// Avoid — a new TCP executor (and potentially open socket) per iteration
+foreach ($domains as $domain) {
+    Dns::builder()->build()->resolve($domain)->then(...);
+}
+```
+
+The same applies to `Dns::create()` — call it once and store the result rather
+than calling it inside a loop or request handler.
+
+### Cache Key Format
+
+When using a custom `CacheInterface` implementation, cache keys follow this
+format:
+```
+{name}:{type_value}:{class_value}
+```
+
+For example, an A record query for `example.com` produces the key:
+```
+example.com:1:1
+```
+
+Where `1` is the integer value of `RecordType::A` and `1` is the integer value
+of `RecordClass::IN`. You can find all type integer values in the
+[Record Type Reference](#record-type-reference) table.
+
+This is relevant if your cache implementation needs prefix-based invalidation,
+key inspection, or manual eviction. For example, to invalidate all cached
+records for a domain in Redis:
+```php
+// Invalidate all record types for example.com
+$types = [1, 2, 5, 6, 12, 15, 16, 28, 33, 35, 44, 255, 257]; // RecordType values
+foreach ($types as $type) {
+    $redis->del("example.com:{$type}:1");
+}
+```
+
+The class component is almost always `1` (IN) for standard DNS queries.
 
 ---
 
@@ -340,6 +422,70 @@ type:
 CNAME chaining is handled automatically for A and AAAA lookups. If the response
 contains a CNAME record pointing to another name, the resolver follows the chain
 up to 10 levels deep before returning the final address records.
+
+---
+
+## Raw Executor Usage
+
+`resolve()` and `resolveAll()` cover most application needs, but you can query
+the executor pipeline directly when you need the full DNS `Message` — for
+example to inspect TTLs, authority records, additional records, or to build
+DNS tooling.
+
+To access `query()` you must construct an executor directly. `Dns::builder()->build()`
+returns a `ResolverInterface`, not an `ExecutorInterface`, and does not expose
+`query()`:
+```php
+use Hibla\Dns\Models\Query;
+use Hibla\Dns\Models\Message;
+use Hibla\Dns\Enums\RecordType;
+use Hibla\Dns\Enums\RecordClass;
+use Hibla\Dns\Queries\UdpTransportExecutor;
+use Hibla\Dns\Queries\TcpTransportExecutor;
+use Hibla\Dns\Queries\SelectiveTransportExecutor;
+use Hibla\Dns\Queries\TimeoutExecutor;
+use Hibla\Dns\Queries\RetryExecutor;
+use Hibla\Dns\Queries\CoopExecutor;
+
+$executor = new CoopExecutor(
+    new RetryExecutor(
+        new SelectiveTransportExecutor(
+            new TimeoutExecutor(new UdpTransportExecutor('1.1.1.1'), 5.0),
+            new TimeoutExecutor(new TcpTransportExecutor('1.1.1.1'), 5.0),
+        ),
+        retries: 2
+    )
+);
+
+$query = new Query('example.com', RecordType::A, RecordClass::IN);
+
+$executor->query($query)->then(function (Message $message) {
+    // Answer records
+    foreach ($message->answers as $record) {
+        echo $record->name;        // owner name
+        echo $record->type->name;  // 'A', 'MX', etc.
+        echo $record->ttl;         // TTL in seconds
+        var_dump($record->data);   // string or array depending on type
+    }
+
+    // Authority records (NS, SOA) — useful for negative caching and delegation
+    foreach ($message->authority as $record) { ... }
+
+    // Additional records — often glue A/AAAA records for nameservers
+    foreach ($message->additional as $record) { ... }
+
+    // Message metadata
+    var_dump($message->isAuthoritative);
+    var_dump($message->recursionAvailable);
+    var_dump($message->responseCode); // ResponseCode enum
+})->wait();
+```
+
+The `data` field on each `Record` follows the same type rules as `resolveAll()`
+— see [Record types and return formats](#record-types-and-return-formats).
+
+See the [Executor Reference](#executor-reference) for all available executors
+and guidance on assembling a custom pipeline.
 
 ---
 
@@ -453,7 +599,11 @@ Hosts file lookups support:
 - Case-insensitive hostname matching
 
 Hosts file entries bypass caching, retries, and transport entirely — they resolve
-synchronously before the network pipeline is involved.
+synchronously before the network pipeline is involved. In the default pipeline,
+`HostsFileExecutor` is the outermost layer, meaning a hosts file hit
+short-circuits before the query ever reaches `CachingExecutor`. If you assemble
+a custom pipeline, place `HostsFileExecutor` outside `CachingExecutor` to
+preserve this behaviour.
 
 You can also use the `HostsFile` class directly for hostname or IP lookups
 against an arbitrary hosts file:
@@ -530,28 +680,28 @@ resolveAll('example.com', A)
         │
         ▼
 ┌───────────────────┐
-│  HostsFileExecutor│  ← checks /etc/hosts first
-└────────┬──────────┘
+│  HostsFileExecutor│  ← checks /etc/hosts first; hit resolves instantly,
+└────────┬──────────┘    bypassing all layers below including the cache
          │ no match — pass through
          ▼
 ┌───────────────────┐
-│  CachingExecutor  │  ← checks cache, stores response on miss
-└────────┬──────────┘
+│  CachingExecutor  │  ← only present when .withCache() is called
+└────────┬──────────┘    checks cache; stores response on miss
          │ cache miss — pass through
          ▼
 ┌───────────────────┐
-│  CoopExecutor     │  ← deduplicates concurrent identical queries
-└────────┬──────────┘
-         │
+│  CoopExecutor     │  ← deduplicates concurrent identical queries;
+└────────┬──────────┘    all concurrent callers share one network request
+         │               and therefore share its retry budget
          ▼
 ┌───────────────────┐
-│  RetryExecutor    │  ← retries on failure (default: 2 retries)
-└────────┬──────────┘
+│  RetryExecutor    │  ← retries on network-level failure only (default: 2 retries)
+└────────┬──────────┘    DNS protocol errors (SERVFAIL, REFUSED) are not retried
          │
          ▼
 ┌───────────────────┐
 │ FallbackExecutor  │  ← tries primary nameserver, then secondary
-└────────┬──────────┘
+└────────┬──────────┘    chains additional executors for 3+ nameservers
          │
          ▼
 ┌────────────────────────┐
@@ -580,9 +730,9 @@ cancelling propagates down through the wrapped executor chain automatically.
 | `TcpTransportExecutor` | Sends queries over TCP. Maintains a persistent connection per nameserver and multiplexes queries over it. Connection closes automatically after 50ms of idle time |
 | `SelectiveTransportExecutor` | Tries UDP first, falls back to TCP automatically if the response is truncated |
 | `TimeoutExecutor` | Wraps any executor and rejects with `TimeoutException` if the query exceeds the configured duration |
-| `RetryExecutor` | Retries a failed query up to N times before rejecting |
+| `RetryExecutor` | Retries a failed query up to N times before rejecting. Only retries on network-level failures — DNS protocol errors are not retried |
 | `FallbackExecutor` | Tries a primary executor, falls back to a secondary on failure |
-| `CoopExecutor` | Deduplicates concurrent identical queries — only one network request is made regardless of how many callers ask for the same name simultaneously. Cancellation is reference-counted: the network query is only cancelled when every caller has cancelled |
+| `CoopExecutor` | Deduplicates concurrent identical queries — only one network request is made regardless of how many callers ask for the same name simultaneously. Cancellation is reference-counted: the network query is only cancelled when every caller has cancelled. All concurrent callers share the same retry budget |
 | `CachingExecutor` | Caches successful responses using the minimum TTL from the answer records |
 | `HostsFileExecutor` | Checks a `HostsFile` instance before delegating to another executor. Supports A, AAAA, and PTR lookups |
 
@@ -612,6 +762,8 @@ $executor = new CoopExecutor(
 
 $executor = new CachingExecutor(new ArrayCache(256), $executor);
 
+// HostsFileExecutor must wrap CachingExecutor, not the other way around,
+// to ensure hosts file entries are never cached
 $executor = new HostsFileExecutor(
     HostsFile::loadFromPathBlocking(),
     $executor
@@ -636,6 +788,13 @@ or catch specific types for granular handling.
 | `QueryFailedException` | A network or protocol error prevented the query from completing |
 | `TimeoutException` | The query exceeded the configured timeout. Extends `QueryFailedException` |
 | `ResponseTruncatedException` | The UDP response was truncated. Handled internally by `SelectiveTransportExecutor` — you will not normally see this unless using `UdpTransportExecutor` directly. Extends `QueryFailedException` |
+
+Note that DNS protocol-level error responses from the server (`SERVFAIL`,
+`REFUSED`, `FORMAT_ERROR`, `NOT_IMPLEMENTED`) are thrown as
+`RecordNotFoundException` rather than `QueryFailedException`. If you need to
+distinguish a server-side protocol error from a "record not found" condition,
+check the exception message or inspect the response code value via
+`$e->getCode()`, which contains the raw DNS response code integer.
 
 The exception hierarchy:
 ```

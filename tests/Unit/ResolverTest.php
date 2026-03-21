@@ -5,6 +5,8 @@ declare(strict_types=1);
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Enums\ResponseCode;
+use Hibla\Dns\Exceptions\NoDataException;
+use Hibla\Dns\Exceptions\NxDomainException;
 use Hibla\Dns\Exceptions\RecordNotFoundException;
 use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Record;
@@ -40,7 +42,7 @@ describe('Resolver', function () {
         expect($promise->wait())->toBe(['::1', '::2']);
     });
 
-    it('throws RecordNotFoundException on NXDOMAIN', function () {
+    it('throws NxDomainException on NXDOMAIN', function () {
         $message = new Message();
         $message->responseCode = ResponseCode::NAME_ERROR;
 
@@ -48,11 +50,10 @@ describe('Resolver', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolve('nonexistent.com')->wait())
-            ->toThrow(RecordNotFoundException::class, 'Non-Existent Domain')
-        ;
+            ->toThrow(NxDomainException::class, 'returned NXDOMAIN');
     });
 
-    it('throws RecordNotFoundException on empty answer (NODATA)', function () {
+    it('throws NoDataException on empty answer (NODATA)', function () {
         $message = new Message();
         $message->responseCode = ResponseCode::OK;
         $message->answers = [];
@@ -61,8 +62,7 @@ describe('Resolver', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolve('exists.com')->wait())
-            ->toThrow(RecordNotFoundException::class, 'did not return a valid answer')
-        ;
+            ->toThrow(NoDataException::class, 'returned NODATA');
     });
 
     it('resolves CNAME chains correctly', function () {
@@ -372,12 +372,12 @@ describe('Resolver - Edge Cases', function () {
         $message = new Message();
         $message->responseCode = ResponseCode::OK;
         $message->answers[] = new Record('alias.example.com', RecordType::CNAME, RecordClass::IN, 300, 'target.example.com');
+
         $mock = new MockExecutor(resultToReturn: $message);
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolveAll('alias.example.com', RecordType::A)->wait())
-            ->toThrow(RecordNotFoundException::class, 'did not return a valid answer')
-        ;
+            ->toThrow(NoDataException::class, 'returned NODATA');
     });
 
     it('prevents infinite recursion on circular CNAME references', function () {
@@ -390,8 +390,7 @@ describe('Resolver - Edge Cases', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolveAll('a.example.com', RecordType::A)->wait())
-            ->toThrow(RecordNotFoundException::class, 'did not return a valid answer')
-        ;
+            ->toThrow(NoDataException::class, 'returned NODATA');
     });
 
     it('prevents stack overflow on self-referencing CNAME', function () {
@@ -403,8 +402,7 @@ describe('Resolver - Edge Cases', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolveAll('loop.example.com', RecordType::A)->wait())
-            ->toThrow(RecordNotFoundException::class, 'did not return a valid answer')
-        ;
+            ->toThrow(NoDataException::class, 'returned NODATA');
     });
 
     it('enforces maximum CNAME chain depth limit', function () {
@@ -413,7 +411,7 @@ describe('Resolver - Edge Cases', function () {
 
         for ($i = 0; $i < 12; $i++) {
             $from = "chain{$i}.example.com";
-            $to = 'chain'.($i + 1).'.example.com';
+            $to = 'chain' . ($i + 1) . '.example.com';
             $message->answers[] = new Record($from, RecordType::CNAME, RecordClass::IN, 300, $to);
         }
 
@@ -423,8 +421,7 @@ describe('Resolver - Edge Cases', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolveAll('chain0.example.com', RecordType::A)->wait())
-            ->toThrow(RecordNotFoundException::class, 'did not return a valid answer')
-        ;
+            ->toThrow(NoDataException::class, 'returned NODATA');
     });
 
     it('allows CNAME chains within depth limit', function () {
@@ -433,7 +430,7 @@ describe('Resolver - Edge Cases', function () {
 
         for ($i = 0; $i < 5; $i++) {
             $from = "chain{$i}.example.com";
-            $to = 'chain'.($i + 1).'.example.com';
+            $to = 'chain' . ($i + 1) . '.example.com';
             $message->answers[] = new Record($from, RecordType::CNAME, RecordClass::IN, 300, $to);
         }
         $message->answers[] = new Record('chain5.example.com', RecordType::A, RecordClass::IN, 300, '1.2.3.4');
@@ -449,7 +446,7 @@ describe('Resolver - Edge Cases', function () {
         $message = new Message();
         $message->responseCode = ResponseCode::OK;
 
-        // Note: Multiple CNAMEs for same name is technically invalid per RFC,
+        // Note: Multiple CNAMEs for same name is technically invalid per RFC
         $message->answers[] = new Record('alias.example.com', RecordType::CNAME, RecordClass::IN, 300, 'target1.example.com');
         $message->answers[] = new Record('alias.example.com', RecordType::CNAME, RecordClass::IN, 300, 'target2.example.com');
         $message->answers[] = new Record('target1.example.com', RecordType::A, RecordClass::IN, 300, '1.1.1.1');
@@ -518,8 +515,7 @@ describe('Resolver - Edge Cases', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolve('example.com')->wait())
-            ->toThrow(RecordNotFoundException::class, 'Format Error')
-        ;
+            ->toThrow(RecordNotFoundException::class, 'Format Error');
     });
 
     it('throws RecordNotFoundException for SERVER_FAILURE', function () {
@@ -530,8 +526,7 @@ describe('Resolver - Edge Cases', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolve('example.com')->wait())
-            ->toThrow(RecordNotFoundException::class, 'Server Failure')
-        ;
+            ->toThrow(RecordNotFoundException::class, 'Server Failure');
     });
 
     it('throws RecordNotFoundException for REFUSED', function () {
@@ -542,8 +537,7 @@ describe('Resolver - Edge Cases', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolve('example.com')->wait())
-            ->toThrow(RecordNotFoundException::class, 'Refused')
-        ;
+            ->toThrow(RecordNotFoundException::class, 'Refused');
     });
 
     it('handles single A record without randomization issue', function () {
@@ -583,8 +577,7 @@ describe('Resolver - Edge Cases', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolve('example.com')->wait())
-            ->toThrow(RuntimeException::class, 'Network timeout')
-        ;
+            ->toThrow(RuntimeException::class, 'Network timeout');
     });
 
     it('handles empty domain name edge case', function () {
@@ -596,8 +589,7 @@ describe('Resolver - Edge Cases', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolve('')->wait())
-            ->toThrow(RecordNotFoundException::class, 'did not return a valid answer')
-        ;
+            ->toThrow(NoDataException::class, 'returned NODATA');
     });
 
     it('preserves record order in resolveAll', function () {
@@ -624,7 +616,6 @@ describe('Resolver - Edge Cases', function () {
         $resolver = new Resolver($mock);
 
         expect(fn () => $resolver->resolveAll('subdomain.example.com', RecordType::A)->wait())
-            ->toThrow(RecordNotFoundException::class, 'did not return a valid answer')
-        ;
+            ->toThrow(NoDataException::class, 'returned NODATA');
     });
 });
