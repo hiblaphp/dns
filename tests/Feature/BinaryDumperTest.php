@@ -382,20 +382,20 @@ describe('BinaryDumper', function () {
             class: RecordClass::IN,
             ttl: 3600,
             data: [
-                'order'       => 100,
-                'preference'  => 10,
-                'flags'       => 'U',
-                'service'     => 'E2U+sip',
-                'regexp'      => '!^.*$!sip:info@example.com!',
+                'order' => 100,
+                'preference' => 10,
+                'flags' => 'U',
+                'service' => 'E2U+sip',
+                'regexp' => '!^.*$!sip:info@example.com!',
                 'replacement' => '',
             ]
         );
 
         $binary = $dumper->toBinary($message);
 
-        $flags   = 'U';
+        $flags = 'U';
         $service = 'E2U+sip';
-        $regexp  = '!^.*$!sip:info@example.com!';
+        $regexp = '!^.*$!sip:info@example.com!';
 
         $expectedRdata = pack('nn', 100, 10)
             . chr(strlen($flags))   . $flags
@@ -416,20 +416,20 @@ describe('BinaryDumper', function () {
             class: RecordClass::IN,
             ttl: 3600,
             data: [
-                'order'       => 50,
-                'preference'  => 100,
-                'flags'       => 'S',
-                'service'     => 'SIP+D2U',
-                'regexp'      => '',
+                'order' => 50,
+                'preference' => 100,
+                'flags' => 'S',
+                'service' => 'SIP+D2U',
+                'regexp' => '',
                 'replacement' => '_sip._udp.example.com',
             ]
         );
 
         $binary = $dumper->toBinary($message);
 
-        $flags   = 'S';
+        $flags = 'S';
         $service = 'SIP+D2U';
-        $regexp  = '';
+        $regexp = '';
 
         $expectedRdata = pack('nn', 50, 100)
             . chr(strlen($flags))   . $flags
@@ -450,11 +450,11 @@ describe('BinaryDumper', function () {
             class: RecordClass::IN,
             ttl: 300,
             data: [
-                'order'       => 10,
-                'preference'  => 10,
-                'flags'       => '',
-                'service'     => '',
-                'regexp'      => '!^(.*)$!sip:\1@example.com!',
+                'order' => 10,
+                'preference' => 10,
+                'flags' => '',
+                'service' => '',
+                'regexp' => '!^(.*)$!sip:\1@example.com!',
                 'replacement' => '',
             ]
         );

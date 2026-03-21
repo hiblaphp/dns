@@ -169,11 +169,11 @@ describe('Parser', function () {
         $original = new Message();
         $original->isResponse = true;
         $original->answers[] = new Record('example.com', RecordType::NAPTR, RecordClass::IN, 3600, [
-            'order'       => 100,
-            'preference'  => 10,
-            'flags'       => 'U',
-            'service'     => 'E2U+sip',
-            'regexp'      => '!^.*$!sip:info@example.com!',
+            'order' => 100,
+            'preference' => 10,
+            'flags' => 'U',
+            'service' => 'E2U+sip',
+            'regexp' => '!^.*$!sip:info@example.com!',
             'replacement' => '',
         ]);
 
@@ -193,11 +193,11 @@ describe('Parser', function () {
         $original = new Message();
         $original->isResponse = true;
         $original->answers[] = new Record('example.com', RecordType::NAPTR, RecordClass::IN, 3600, [
-            'order'       => 50,
-            'preference'  => 100,
-            'flags'       => 'S',
-            'service'     => 'SIP+D2U',
-            'regexp'      => '',
+            'order' => 50,
+            'preference' => 100,
+            'flags' => 'S',
+            'service' => 'SIP+D2U',
+            'regexp' => '',
             'replacement' => '_sip._udp.example.com',
         ]);
 
@@ -217,11 +217,11 @@ describe('Parser', function () {
         $original = new Message();
         $original->isResponse = true;
         $original->answers[] = new Record('example.com', RecordType::NAPTR, RecordClass::IN, 300, [
-            'order'       => 10,
-            'preference'  => 10,
-            'flags'       => '',
-            'service'     => '',
-            'regexp'      => '!^(.*)$!sip:\1@example.com!',
+            'order' => 10,
+            'preference' => 10,
+            'flags' => '',
+            'service' => '',
+            'regexp' => '!^(.*)$!sip:\1@example.com!',
             'replacement' => '',
         ]);
 
@@ -251,16 +251,18 @@ describe('Parser', function () {
     it('throws InvalidArgumentException for truncated data', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0, 1, 0, 0, 0);
 
-        expect(fn() => $parser->parseMessage($data))
-            ->toThrow(InvalidArgumentException::class);
+        expect(fn () => $parser->parseMessage($data))
+            ->toThrow(InvalidArgumentException::class)
+        ;
     });
 
     it('throws InvalidArgumentException for invalid compression pointer', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0, 1, 0, 0, 0);
         $data .= "\xC3\xE7";
 
-        expect(fn() => $parser->parseMessage($data))
-            ->toThrow(InvalidArgumentException::class);
+        expect(fn () => $parser->parseMessage($data))
+            ->toThrow(InvalidArgumentException::class)
+        ;
     });
 
     it('parses header flags correctly', function () use ($parser, $dumper) {
@@ -309,8 +311,9 @@ describe('Parser', function () {
         $data = pack('nnnnnn', 1, 0, 1, 0, 0, 0);
         $data .= "\xC0\x0C" . pack('nn', 1, 1);
 
-        expect(fn() => $parser->parseMessage($data))
-            ->toThrow(InvalidArgumentException::class, 'Too many compression pointers');
+        expect(fn () => $parser->parseMessage($data))
+            ->toThrow(InvalidArgumentException::class, 'Too many compression pointers')
+        ;
     });
 
     it('parses complex TXT records with multiple strings', function () use ($parser) {
@@ -328,15 +331,17 @@ describe('Parser', function () {
         $data = pack('nnnnnn', 1, 0x8000, 0, 1, 0, 0);
         $data .= "\x01a\x00" . pack('nnNn', 1, 1, 0, 10);
 
-        expect(fn() => $parser->parseMessage($data))
-            ->toThrow(InvalidArgumentException::class);
+        expect(fn () => $parser->parseMessage($data))
+            ->toThrow(InvalidArgumentException::class)
+        ;
     });
 
     it('throws exception if label length exceeds packet size', function () use ($parser) {
         $data = pack('nnnnnn', 1, 0, 1, 0, 0, 0);
         $data .= "\x32";
 
-        expect(fn() => $parser->parseMessage($data))
-            ->toThrow(InvalidArgumentException::class);
+        expect(fn () => $parser->parseMessage($data))
+            ->toThrow(InvalidArgumentException::class)
+        ;
     });
 });

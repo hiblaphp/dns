@@ -133,14 +133,14 @@ final class Parser
         $offset += $length;
 
         $rdata = match ($type) {
-            RecordType::A    => $this->parseIpAddress($rdataRaw),
+            RecordType::A => $this->parseIpAddress($rdataRaw),
             RecordType::AAAA => $this->parseIpAddress($rdataRaw),
             RecordType::CNAME, RecordType::NS, RecordType::PTR => $this->readName($data, $rdataOffset)[0],
-            RecordType::TXT  => $this->parseTxt($rdataRaw),
-            RecordType::MX   => $this->parseMx($data, $rdataOffset),
-            RecordType::SOA  => $this->parseSoa($data, $rdataOffset),
-            RecordType::SRV  => $this->parseSrv($data, $rdataOffset),
-            RecordType::CAA  => $this->parseCaa($rdataRaw),
+            RecordType::TXT => $this->parseTxt($rdataRaw),
+            RecordType::MX => $this->parseMx($data, $rdataOffset),
+            RecordType::SOA => $this->parseSoa($data, $rdataOffset),
+            RecordType::SRV => $this->parseSrv($data, $rdataOffset),
+            RecordType::CAA => $this->parseCaa($rdataRaw),
             RecordType::SSHFP => $this->parseSshfp($rdataRaw),
             RecordType::NAPTR => $this->parseNaptr($data, $rdataOffset),
             default => $rdataRaw
@@ -205,11 +205,11 @@ final class Parser
         [$replacement] = $this->readName($data, $offset);
 
         return [
-            'order'       => $this->ensureInt($values['order']),
-            'preference'  => $this->ensureInt($values['preference']),
-            'flags'       => $flags,
-            'service'     => $service,
-            'regexp'      => $regexp,
+            'order' => $this->ensureInt($values['order']),
+            'preference' => $this->ensureInt($values['preference']),
+            'flags' => $flags,
+            'service' => $service,
+            'regexp' => $regexp,
             'replacement' => $replacement,
         ];
     }

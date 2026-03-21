@@ -24,7 +24,8 @@ final class Resolver implements ResolverInterface
 
     public function __construct(
         private readonly ExecutorInterface $executor
-    ) {}
+    ) {
+    }
 
     /**
      * {@inheritdoc}
@@ -55,7 +56,7 @@ final class Resolver implements ResolverInterface
 
         return $this->executor->query($query)
             ->then(
-                onFulfilled: fn(Message $response) => $this->extractValues($query, $response)
+                onFulfilled: fn (Message $response) => $this->extractValues($query, $response)
             )
         ;
     }
@@ -81,10 +82,10 @@ final class Resolver implements ResolverInterface
             }
 
             $errorMsg = match ($response->responseCode) {
-                ResponseCode::FORMAT_ERROR    => 'Format Error',
-                ResponseCode::SERVER_FAILURE  => 'Server Failure',
+                ResponseCode::FORMAT_ERROR => 'Format Error',
+                ResponseCode::SERVER_FAILURE => 'Server Failure',
                 ResponseCode::NOT_IMPLEMENTED => 'Not Implemented',
-                ResponseCode::REFUSED         => 'Refused',
+                ResponseCode::REFUSED => 'Refused',
             };
 
             throw new RecordNotFoundException(
@@ -122,18 +123,18 @@ final class Resolver implements ResolverInterface
         // 1. Direct match?
         $directMatches = array_filter(
             $answers,
-            fn(Record $r) => strcasecmp($r->name, $name) === 0 && $r->type === $type
+            fn (Record $r) => strcasecmp($r->name, $name) === 0 && $r->type === $type
         );
 
         if (\count($directMatches) > 0) {
-            return array_values(array_map(fn(Record $r) => $r->data, $directMatches));
+            return array_values(array_map(fn (Record $r) => $r->data, $directMatches));
         }
 
         // 2. CNAME Chaining (only for A, AAAA, and similar record types)
         if ($this->shouldFollowCNAME($type)) {
             $cnameMatches = array_filter(
                 $answers,
-                fn(Record $r) => strcasecmp($r->name, $name) === 0 && $r->type === RecordType::CNAME
+                fn (Record $r) => strcasecmp($r->name, $name) === 0 && $r->type === RecordType::CNAME
             );
 
             /** @var list<mixed> $results */

@@ -109,10 +109,18 @@ final class BinaryDumper
         $regexp = $data['regexp'];
         $replacement = $data['replacement'];
 
+        $flagsLen = \strlen($flags);
+        $serviceLen = \strlen($service);
+        $regexpLen = \strlen($regexp);
+
+        assert($flagsLen <= 255, 'NAPTR flags length must not exceed 255');
+        assert($serviceLen <= 255, 'NAPTR service length must not exceed 255');
+        assert($regexpLen <= 255, 'NAPTR regexp length must not exceed 255');
+
         return pack('nn', (int) $data['order'], (int) $data['preference'])
-            . \chr(\strlen($flags))   . $flags
-            . \chr(\strlen($service)) . $service
-            . \chr(\strlen($regexp))  . $regexp
+            . \chr($flagsLen)   . $flags
+            . \chr($serviceLen) . $service
+            . \chr($regexpLen)  . $regexp
             . ($replacement !== '' ? $this->domainNameToBinary($replacement) : "\x00");
     }
 
