@@ -851,19 +851,19 @@ The `RecordType` enum lists all supported DNS record types. Pass any of these to
 
 | Value | Name | Description | RFC |
 |---|---|---|---|
-| `1` | `A` | IPv4 address | RFC 1035 |
-| `2` | `NS` | Authoritative nameserver | RFC 1035 |
-| `5` | `CNAME` | Canonical name / alias | RFC 1035 |
-| `6` | `SOA` | Start of authority | RFC 1035 |
-| `12` | `PTR` | Pointer for reverse DNS | RFC 1035 |
-| `15` | `MX` | Mail exchange server | RFC 1035 |
-| `16` | `TXT` | Text records | RFC 1035 |
-| `28` | `AAAA` | IPv6 address | RFC 3596 |
-| `33` | `SRV` | Service locator | RFC 2782 |
-| `35` | `NAPTR` | Naming authority pointer | RFC 2915 |
-| `44` | `SSHFP` | SSH public key fingerprint | RFC 4255 |
-| `255` | `ANY` | Request for all records | RFC 1035 |
-| `257` | `CAA` | Certification Authority Authorization | RFC 6844 |
+| `1` | `A` | IPv4 address | [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) |
+| `2` | `NS` | Authoritative nameserver | [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) |
+| `5` | `CNAME` | Canonical name / alias | [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) |
+| `6` | `SOA` | Start of authority | [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) |
+| `12` | `PTR` | Pointer for reverse DNS | [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) |
+| `15` | `MX` | Mail exchange server | [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) |
+| `16` | `TXT` | Text records | [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) |
+| `28` | `AAAA` | IPv6 address | [RFC 3596](https://datatracker.ietf.org/doc/html/rfc3596) |
+| `33` | `SRV` | Service locator | [RFC 2782](https://datatracker.ietf.org/doc/html/rfc2782) |
+| `35` | `NAPTR` | Naming authority pointer | [RFC 2915](https://datatracker.ietf.org/doc/html/rfc2915) |
+| `44` | `SSHFP` | SSH public key fingerprint | [RFC 4255](https://datatracker.ietf.org/doc/html/rfc4255) |
+| `255` | `ANY` | Request for all records | [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) |
+| `257` | `CAA` | Certification Authority Authorization | [RFC 6844](https://datatracker.ietf.org/doc/html/rfc6844) |
 
 ---
 
