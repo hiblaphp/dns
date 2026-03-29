@@ -2,11 +2,7 @@
 
 **Async, non-blocking DNS resolution for PHP with a full executor pipeline.**
 
-`hiblaphp/dns` provides promise-based DNS resolution built on top of the Hibla
-event loop. Queries never block the thread — UDP and TCP transports are driven
-entirely by non-blocking I/O watchers. A composable executor pipeline handles
-caching, deduplication, retries, timeouts, transport fallback, and hosts file
-resolution out of the box.
+`hiblaphp/dns` provides promise-based DNS resolution built on top of the Hibla event loop. Queries never block the thread. UDP and TCP transports are driven entirely by non-blocking I/O watchers. A composable executor pipeline handles caching, deduplication, retries, timeouts, transport fallback, and hosts file resolution out of the box.
 
 [![Latest Release](https://img.shields.io/github/release/hiblaphp/dns.svg?style=flat-square)](https://github.com/hiblaphp/dns/releases)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](./LICENSE)
@@ -73,35 +69,17 @@ composer require hiblaphp/dns
 
 ## Introduction
 
-PHP's built-in `gethostbyname()` and `dns_get_record()` are synchronous — they
-block the entire thread while waiting for the DNS server to respond. In an async
-application running on the Hibla event loop, a blocking DNS lookup stalls all
-timers, fibers, and I/O for the duration of the call.
+PHP's built-in `gethostbyname()` and `dns_get_record()` are synchronous. They block the entire thread while waiting for the DNS server to respond. In an async application running on the Hibla event loop, a blocking DNS lookup stalls all timers, fibers, and I/O for the duration of the call.
 
-`hiblaphp/dns` replaces these with non-blocking alternatives. Queries are sent
-over UDP or TCP sockets managed by the event loop, and the result is delivered
-as a promise that resolves when the DNS server responds — without blocking
-anything else.
+`hiblaphp/dns` replaces these with non-blocking alternatives. Queries are sent over UDP or TCP sockets managed by the event loop, and the result is delivered as a promise that resolves when the DNS server responds, without blocking anything else.
 
-The library is built around a composable executor pipeline. Each query passes
-through a stack of decorators in order: hosts file check, cache lookup, query
-deduplication, transport selection, timeout enforcement, and retry logic. The
-full pipeline is assembled automatically when you call `Dns::resolve()`,
-`Dns::create()`, or `Dns::builder()->build()`.
+The library is built around a composable executor pipeline. Each query passes through a stack of decorators in order: hosts file check, cache lookup, query deduplication, transport selection, timeout enforcement, and retry logic. The full pipeline is assembled automatically when you call `Dns::resolve()`, `Dns::create()`, or `Dns::builder()->build()`.
 
 **`->wait()` vs `await()`**
 
-The examples in this README use `->wait()` to drive the event loop until the
-promise settles. This is the correct approach when using `hiblaphp/dns` on its
-own — `->wait()` only requires `hiblaphp/event-loop` and `hiblaphp/promise`,
-which this package already depends on.
+The examples in this README use `->wait()` to drive the event loop until the promise settles. This is the correct approach when using `hiblaphp/dns` on its own. `->wait()` only requires `hiblaphp/event-loop` and `hiblaphp/promise`, which this package already depends on.
 
-If you are using this library inside a larger Hibla async application where a
-fiber is already running — for example inside an `async()` block — you can use
-`await()` from `hiblaphp/async` instead. Both resolve the same promise. The
-difference is that `->wait()` blocks the calling code until the loop settles,
-while `await()` suspends only the current fiber and lets the event loop continue
-running other work in the meantime.
+If you are using this library inside a larger Hibla async application where a fiber is already running (for example inside an `async()` block) you can use `await()` from `hiblaphp/async` instead. Both resolve the same promise. The difference is that `->wait()` blocks the calling code until the loop settles, while `await()` suspends only the current fiber and lets the event loop continue running other work in the meantime.
 
 ---
 
@@ -128,15 +106,9 @@ Dns::create()                         ← multiple lookups with system defaults
 Dns::builder()->build()               ← any lookup needing custom configuration
 ```
 
-**`Dns::resolve()` and `Dns::resolveAll()`** are one-line static shortcuts.
-Each call reads the system DNS configuration from disk (`/etc/resolv.conf` on
-Unix, `wmic` on Windows) and constructs a fresh resolver. This is fine for a
-single lookup but wasteful for multiple lookups — each call pays the system
-configuration cost again.
+**`Dns::resolve()` and `Dns::resolveAll()`** are one-line static shortcuts. Each call reads the system DNS configuration from disk (`/etc/resolv.conf` on Unix, `wmic` on Windows) and constructs a fresh resolver. This is fine for a single lookup but wasteful for multiple lookups, as each call pays the system configuration cost again.
 
-**`Dns::create()`** reads the system DNS configuration once and returns a
-reusable resolver. Use this when making multiple lookups with default settings —
-you pay the configuration cost once and reuse the resolver for every query:
+**`Dns::create()`** reads the system DNS configuration once and returns a reusable resolver. Use this when making multiple lookups with default settings. You pay the configuration cost once and reuse the resolver for every query:
 ```php
 use Hibla\Dns\Dns;
 
@@ -149,8 +121,7 @@ $ip2 = $resolver->resolve('google.com')->wait();
 $ip3 = $resolver->resolve('github.com')->wait();
 ```
 
-**`Dns::builder()->build()`** gives you full control over nameservers, timeouts,
-retries, and caching. Use this whenever you need anything beyond the defaults:
+**`Dns::builder()->build()`** gives you full control over nameservers, timeouts, retries, and caching. Use this whenever you need anything beyond the defaults:
 ```php
 use Hibla\Dns\Dns;
 
@@ -166,8 +137,7 @@ $resolver = Dns::builder()
 
 ## Quick Resolve
 
-The static `Dns::resolve()` and `Dns::resolveAll()` methods are the fastest way
-to perform a one-off lookup without any setup:
+The static `Dns::resolve()` and `Dns::resolveAll()` methods are the fastest way to perform a one-off lookup without any setup:
 ```php
 use Hibla\Dns\Dns;
 use Hibla\Dns\Enums\RecordType;
@@ -182,15 +152,13 @@ $ips = Dns::resolveAll('example.com', RecordType::A)->wait();
 $mx = Dns::resolveAll('example.com', RecordType::MX)->wait();
 ```
 
-For multiple lookups, use `Dns::create()` instead to avoid re-reading system
-configuration on every call.
+For multiple lookups, use `Dns::create()` instead to avoid re-reading system configuration on every call.
 
 ---
 
 ## Reusable Resolver
 
-`Dns::create()` builds a resolver with system defaults and returns it for reuse.
-The system DNS configuration is read once at construction time:
+`Dns::create()` builds a resolver with system defaults and returns it for reuse. The system DNS configuration is read once at construction time:
 ```php
 use Hibla\Dns\Dns;
 use Hibla\Dns\Enums\RecordType;
@@ -206,9 +174,7 @@ $txt = $resolver->resolveAll('example.com', RecordType::TXT)->wait();
 
 ## Building a Resolver
 
-`Dns::builder()` returns a fluent builder. Every configuration method returns a
-new instance — the builder is immutable and safe to reuse across multiple
-`build()` calls.
+`Dns::builder()` returns a fluent builder. Every configuration method returns a new instance. The builder is immutable and safe to reuse across multiple `build()` calls.
 ```php
 use Hibla\Dns\Dns;
 
@@ -222,9 +188,7 @@ $resolver = Dns::builder()
 
 ### Nameservers
 
-Pass a single IP or an array. When multiple nameservers are provided, the first
-is treated as primary and the rest as fallbacks — if the primary fails, the next
-is tried automatically.
+Pass a single IP or an array. When multiple nameservers are provided, the first is treated as primary and the rest as fallbacks. If the primary fails, the next is tried automatically.
 ```php
 // Single nameserver
 $resolver = Dns::builder()
@@ -237,21 +201,13 @@ $resolver = Dns::builder()
     ->build();
 ```
 
-If `withNameservers()` is not called, the builder loads nameservers from the
-system configuration automatically. If system configuration cannot be loaded,
-Cloudflare (`1.1.1.1`) and Google (`8.8.8.8`) are used as defaults.
+If `withNameservers()` is not called, the builder loads nameservers from the system configuration automatically. If system configuration cannot be loaded, Cloudflare (`1.1.1.1`) and Google (`8.8.8.8`) are used as defaults.
 
-When three or more nameservers are configured, the fallback chain is nested.
-For three nameservers the structure is effectively
-`FallbackExecutor(FallbackExecutor(NS1, NS2), NS3)`. If all servers fail, the
-error message will contain each server's error concatenated in the chain — this
-is expected and useful for diagnosing which servers were tried.
+When three or more nameservers are configured, the fallback chain is nested. For three nameservers the structure is effectively `FallbackExecutor(FallbackExecutor(NS1, NS2), NS3)`. If all servers fail, the error message will contain each server's error concatenated in the chain. This is expected and useful for diagnosing which servers were tried.
 
 ### Timeout
 
-Sets the maximum time in seconds to wait for a response from a nameserver before
-the query is rejected with a `TimeoutException`. Applies per transport attempt —
-a query that retries will apply the timeout to each individual attempt.
+Sets the maximum time in seconds to wait for a response from a nameserver before the query is rejected with a `TimeoutException`. Applies per transport attempt, so a query that retries will apply the timeout to each individual attempt.
 ```php
 $resolver = Dns::builder()
     ->withTimeout(3.0) // 3 seconds per attempt
@@ -262,8 +218,7 @@ The default timeout is 5.0 seconds.
 
 ### Retries
 
-Sets the number of times a failed query is retried before the promise is
-rejected. A value of `0` disables retries entirely.
+Sets the number of times a failed query is retried before the promise is rejected. A value of `0` disables retries entirely.
 ```php
 $resolver = Dns::builder()
     ->withRetries(3) // try up to 4 times total (1 initial + 3 retries)
@@ -272,24 +227,13 @@ $resolver = Dns::builder()
 
 The default is 2 retries.
 
-Retries apply to network-level failures such as timeouts and connection errors.
-DNS protocol-level errors returned by the server — `SERVFAIL`, `REFUSED`,
-`FORMAT_ERROR` — arrive as valid responses and are not retried. If a nameserver
-returns `SERVFAIL` transiently, configuring multiple nameservers with
-`withNameservers()` is a more effective mitigation than increasing the retry
-count.
+Retries apply to network-level failures such as timeouts and connection errors. DNS protocol-level errors returned by the server (`SERVFAIL`, `REFUSED`, `FORMAT_ERROR`) arrive as valid responses and are not retried. If a nameserver returns `SERVFAIL` transiently, configuring multiple nameservers with `withNameservers()` is a more effective mitigation than increasing the retry count.
 
-Note that in the default pipeline, `RetryExecutor` sits inside `CoopExecutor`.
-When multiple concurrent callers request the same domain simultaneously, they
-share a single deduplicated network request and therefore share the same retry
-budget. If that single request exhausts its retries, all concurrent callers
-receive the failure at the same time.
+Note that in the default pipeline, `RetryExecutor` sits inside `CoopExecutor`. When multiple concurrent callers request the same domain simultaneously, they share a single deduplicated network request and therefore share the same retry budget. If that single request exhausts its retries, all concurrent callers receive the failure at the same time.
 
 ### Caching
 
-Enables response caching. Successful responses are stored with their DNS TTL as
-the cache expiry. Subsequent identical queries are served from cache until the
-TTL expires, skipping the network entirely.
+Enables response caching. Successful responses are stored with their DNS TTL as the cache expiry. Subsequent identical queries are served from cache until the TTL expires, skipping the network entirely.
 ```php
 // Default cache — in-memory ArrayCache with a 256 entry limit
 $resolver = Dns::builder()
@@ -302,19 +246,13 @@ $resolver = Dns::builder()
     ->build();
 ```
 
-The custom cache must implement `Hibla\Cache\Interfaces\CacheInterface`. Caching
-is disabled by default.
+The custom cache must implement `Hibla\Cache\Interfaces\CacheInterface`. Caching is disabled by default.
 
 ### Reusing Resolvers
 
-Each call to `Dns::builder()->build()` constructs a new executor pipeline,
-including a `TcpTransportExecutor` whose open sockets are only cleaned up when
-the executor is garbage-collected. In long-running applications, creating a
-resolver per request can leave TCP sockets open longer than expected if
-references are held anywhere in scope.
+Each call to `Dns::builder()->build()` constructs a new executor pipeline, including a `TcpTransportExecutor` whose open sockets are only cleaned up when the executor is garbage-collected. In long-running applications, creating a resolver per request can leave TCP sockets open longer than expected if references are held anywhere in scope.
 
-Create the resolver once and reuse it for the lifetime of your application or
-service:
+Create the resolver once and reuse it for the lifetime of your application or service:
 ```php
 // Good — one resolver, many queries
 $resolver = Dns::builder()
@@ -332,13 +270,11 @@ foreach ($domains as $domain) {
 }
 ```
 
-The same applies to `Dns::create()` — call it once and store the result rather
-than calling it inside a loop or request handler.
+The same applies to `Dns::create()`. Call it once and store the result rather than calling it inside a loop or request handler.
 
 ### Cache Key Format
 
-When using a custom `CacheInterface` implementation, cache keys follow this
-format:
+When using a custom `CacheInterface` implementation, cache keys follow this format:
 ```
 {name}:{type_value}:{class_value}
 ```
@@ -348,13 +284,9 @@ For example, an A record query for `example.com` produces the key:
 example.com:1:1
 ```
 
-Where `1` is the integer value of `RecordType::A` and `1` is the integer value
-of `RecordClass::IN`. You can find all type integer values in the
-[Record Type Reference](#record-type-reference) table.
+Where `1` is the integer value of `RecordType::A` and `1` is the integer value of `RecordClass::IN`. You can find all type integer values in the [Record Type Reference](#record-type-reference) table.
 
-This is relevant if your cache implementation needs prefix-based invalidation,
-key inspection, or manual eviction. For example, to invalidate all cached
-records for a domain in Redis:
+This is relevant if your cache implementation needs prefix-based invalidation, key inspection, or manual eviction. For example, to invalidate all cached records for a domain in Redis:
 ```php
 // Invalidate all record types for example.com
 $types = [1, 2, 5, 6, 12, 15, 16, 28, 33, 35, 44, 255, 257]; // RecordType values
@@ -371,9 +303,7 @@ The class component is almost always `1` (IN) for standard DNS queries.
 
 ### `resolve()` — single IP address
 
-Performs an A record lookup and returns one IPv4 address as a string. If the
-response contains multiple A records, one is chosen at random. Rejects with
-`RecordNotFoundException` if no A records are found.
+Performs an A record lookup and returns one IPv4 address as a string. If the response contains multiple A records, one is chosen at random. Rejects with `RecordNotFoundException` if no A records are found.
 ```php
 $ip = $resolver->resolve('example.com')->wait();
 echo $ip; // "93.184.216.34"
@@ -381,8 +311,7 @@ echo $ip; // "93.184.216.34"
 
 ### `resolveAll()` — all records of a type
 
-Returns all records of the specified type as an array. The array contents depend
-on the record type — see the table below.
+Returns all records of the specified type as an array. The array contents depend on the record type. See the table below.
 ```php
 use Hibla\Dns\Enums\RecordType;
 
@@ -401,8 +330,7 @@ $txt = $resolver->resolveAll('example.com', RecordType::TXT)->wait();
 
 ### Record types and return formats
 
-The shape of each element in the `resolveAll()` result depends on the record
-type:
+The shape of each element in the `resolveAll()` result depends on the record type:
 
 | Record type | Element type | Fields |
 |---|---|---|
@@ -419,22 +347,15 @@ type:
 | `SSHFP` | `array` | `['algorithm' => int, 'fptype' => int, 'fingerprint' => string]` |
 | `NAPTR` | `array` | `['order' => int, 'preference' => int, 'flags' => string, 'service' => string, 'regexp' => string, 'replacement' => string]` |
 
-CNAME chaining is handled automatically for A and AAAA lookups. If the response
-contains a CNAME record pointing to another name, the resolver follows the chain
-up to 10 levels deep before returning the final address records.
+CNAME chaining is handled automatically for A and AAAA lookups. If the response contains a CNAME record pointing to another name, the resolver follows the chain up to 10 levels deep before returning the final address records.
 
 ---
 
 ## Raw Executor Usage
 
-`resolve()` and `resolveAll()` cover most application needs, but you can query
-the executor pipeline directly when you need the full DNS `Message` — for
-example to inspect TTLs, authority records, additional records, or to build
-DNS tooling.
+`resolve()` and `resolveAll()` cover most application needs, but you can query the executor pipeline directly when you need the full DNS `Message`, for example to inspect TTLs, authority records, additional records, or to build DNS tooling.
 
-To access `query()` you must construct an executor directly. `Dns::builder()->build()`
-returns a `ResolverInterface`, not an `ExecutorInterface`, and does not expose
-`query()`:
+To access `query()` you must construct an executor directly. `Dns::builder()->build()` returns a `ResolverInterface`, not an `ExecutorInterface`, and does not expose `query()`:
 ```php
 use Hibla\Dns\Models\Query;
 use Hibla\Dns\Models\Message;
@@ -481,20 +402,15 @@ $executor->query($query)->then(function (Message $message) {
 })->wait();
 ```
 
-The `data` field on each `Record` follows the same type rules as `resolveAll()`
-— see [Record types and return formats](#record-types-and-return-formats).
+The `data` field on each `Record` follows the same type rules as `resolveAll()`. See [Record types and return formats](#record-types-and-return-formats).
 
-See the [Executor Reference](#executor-reference) for all available executors
-and guidance on assembling a custom pipeline.
+See the [Executor Reference](#executor-reference) for all available executors and guidance on assembling a custom pipeline.
 
 ---
 
 ## Cancellation
 
-Every promise returned by `resolve()` and `resolveAll()` supports cancellation.
-Calling `cancel()` on the promise immediately aborts the in-flight query, cleans
-up the underlying socket or watcher, and cancels any pending retries or fallback
-attempts in the pipeline. No further callbacks fire after cancellation.
+Every promise returned by `resolve()` and `resolveAll()` supports cancellation. Calling `cancel()` on the promise immediately aborts the in-flight query, cleans up the underlying socket or watcher, and cancels any pending retries or fallback attempts in the pipeline. No further callbacks fire after cancellation.
 ```php
 use Hibla\Dns\Dns;
 use Hibla\EventLoop\Loop;
@@ -518,15 +434,9 @@ $promise
 Loop::run();
 ```
 
-Cancellation propagates through the entire executor pipeline. Cancelling a
-promise that is waiting on a retry will cancel the current attempt and prevent
-any further retries from starting. Cancelling a promise on the `CoopExecutor`
-decrements its reference count — the underlying network query is only cancelled
-when every caller that shares it has cancelled their own promise.
+Cancellation propagates through the entire executor pipeline. Cancelling a promise that is waiting on a retry will cancel the current attempt and prevent any further retries from starting. Cancelling a promise on the `CoopExecutor` decrements its reference count. The underlying network query is only cancelled when every caller that shares it has cancelled their own promise.
 
-If you are running inside a fiber with `hiblaphp/async`, you can use
-`CancellationTokenSource` for structured cancellation that applies a timeout
-across the entire lookup without managing timers manually:
+If you are running inside a fiber with `hiblaphp/async`, you can use `CancellationTokenSource` for structured cancellation that applies a timeout across the entire lookup without managing timers manually:
 ```php
 use Hibla\Dns\Dns;
 use Hibla\Cancellation\CancellationTokenSource;
@@ -546,23 +456,13 @@ try {
 
 ## System Configuration Detection
 
-When no nameservers are explicitly provided, the builder calls
-`Config::loadSystemConfigBlocking()` at build time to read the system DNS
-configuration. This is a blocking operation — it reads from the filesystem or
-executes a shell command — but it runs only once at resolver construction and the
-result is used for the lifetime of the resolver.
+When no nameservers are explicitly provided, the builder calls `Config::loadSystemConfigBlocking()` at build time to read the system DNS configuration. This is a blocking operation (it reads from the filesystem or executes a shell command) but it runs only once at resolver construction and the result is used for the lifetime of the resolver.
 
-On **Unix and macOS**, the method parses `/etc/resolv.conf` for `nameserver`
-entries. IPv6 zone identifiers are stripped and all addresses are normalized
-before use.
+On **Unix and macOS**, the method parses `/etc/resolv.conf` for `nameserver` entries. IPv6 zone identifiers are stripped and all addresses are normalized before use.
 
-On **Windows**, the method executes `wmic NICCONFIG get DNSServerSearchOrder`
-and parses the CSV output. Duplicate addresses across multiple adapters are
-deduplicated automatically.
+On **Windows**, the method executes `wmic NICCONFIG get DNSServerSearchOrder` and parses the CSV output. Duplicate addresses across multiple adapters are deduplicated automatically.
 
-If system configuration cannot be read — missing file, permissions error, or
-`shell_exec` disabled — an empty configuration is returned and the builder falls
-back to Cloudflare (`1.1.1.1`) and Google (`8.8.8.8`) as defaults.
+If system configuration cannot be read (missing file, permissions error, or `shell_exec` disabled) an empty configuration is returned and the builder falls back to Cloudflare (`1.1.1.1`) and Google (`8.8.8.8`) as defaults.
 
 To load the system configuration manually or supply a custom resolv.conf path:
 ```php
@@ -585,28 +485,19 @@ $resolver = Dns::builder()
 
 ## Hosts File
 
-The resolver checks the system hosts file before making any network query. On
-Unix and macOS this is `/etc/hosts`. On Windows it is
-`%SystemRoot%\system32\drivers\etc\hosts`. If the file cannot be read, the
-resolver continues with network-based lookups only — no error is thrown.
+The resolver checks the system hosts file before making any network query. On Unix and macOS this is `/etc/hosts`. On Windows it is `%SystemRoot%\system32\drivers\etc\hosts`. If the file cannot be read, the resolver continues with network-based lookups only. No error is thrown.
 
 Hosts file lookups support:
-- Forward lookups (A and AAAA) — hostname to IP
-- Reverse lookups (PTR) — IP to hostname
+- Forward lookups (A and AAAA): hostname to IP
+- Reverse lookups (PTR): IP to hostname
 - Multiple aliases per line
 - Both IPv4 and IPv6 entries
 - IPv6 zone identifiers (stripped automatically)
 - Case-insensitive hostname matching
 
-Hosts file entries bypass caching, retries, and transport entirely — they resolve
-synchronously before the network pipeline is involved. In the default pipeline,
-`HostsFileExecutor` is the outermost layer, meaning a hosts file hit
-short-circuits before the query ever reaches `CachingExecutor`. If you assemble
-a custom pipeline, place `HostsFileExecutor` outside `CachingExecutor` to
-preserve this behaviour.
+Hosts file entries bypass caching, retries, and transport entirely. They resolve synchronously before the network pipeline is involved. In the default pipeline, `HostsFileExecutor` is the outermost layer, meaning a hosts file hit short-circuits before the query ever reaches `CachingExecutor`. If you assemble a custom pipeline, place `HostsFileExecutor` outside `CachingExecutor` to preserve this behaviour.
 
-You can also use the `HostsFile` class directly for hostname or IP lookups
-against an arbitrary hosts file:
+You can also use the `HostsFile` class directly for hostname or IP lookups against an arbitrary hosts file:
 ```php
 use Hibla\Dns\Configs\HostsFile;
 
@@ -625,9 +516,7 @@ $names = $hosts->getHostsForIp('127.0.0.1');
 
 ## Specifying Transport
 
-By default, each nameserver uses UDP first and automatically retries with TCP if
-the response is truncated. You can force a specific transport by prefixing the
-nameserver address with `udp://` or `tcp://`:
+By default, each nameserver uses UDP first and automatically retries with TCP if the response is truncated. You can force a specific transport by prefixing the nameserver address with `udp://` or `tcp://`:
 ```php
 // Force UDP only
 $resolver = Dns::builder()
@@ -645,36 +534,21 @@ $resolver = Dns::builder()
     ->build();
 ```
 
-TCP is also used automatically for any response whose size exceeds UDP's 512-byte
-limit — DNSSEC responses, domains with many MX or NS records, and large TXT
-records commonly trigger this fallback.
+TCP is also used automatically for any response whose size exceeds UDP's 512-byte limit. DNSSEC responses, domains with many MX or NS records, and large TXT records commonly trigger this fallback.
 
-Both IPv4 and IPv6 nameserver addresses are supported. IPv6 addresses are wrapped
-in brackets automatically if not already formatted that way.
+Both IPv4 and IPv6 nameserver addresses are supported. IPv6 addresses are wrapped in brackets automatically if not already formatted that way.
 
 ### TCP connection reuse and idle period
 
-When using TCP transport, the first query establishes a connection to the
-nameserver. Subsequent queries sent while that connection is still open are
-multiplexed over the same socket, avoiding the TCP handshake overhead for each
-query. Once all pending queries have settled and no new queries arrive within
-50ms, the connection is closed automatically.
+When using TCP transport, the first query establishes a connection to the nameserver. Subsequent queries sent while that connection is still open are multiplexed over the same socket, avoiding the TCP handshake overhead for each query. Once all pending queries have settled and no new queries arrive within 50ms, the connection is closed automatically.
 
-This idle period means TCP is most efficient for bursts of concurrent queries —
-multiple queries issued in rapid succession share one connection. Queries sent
-with longer gaps between them will each establish a fresh connection, which
-incurs the TCP handshake latency of approximately 10–50ms per query depending
-on network conditions. If this matters for your use case, batch queries together
-or use UDP transport, which has no connection overhead.
+This idle period means TCP is most efficient for bursts of concurrent queries. Multiple queries issued in rapid succession share one connection. Queries sent with longer gaps between them will each establish a fresh connection, which incurs the TCP handshake latency of approximately 10–50ms per query depending on network conditions. If this matters for your use case, batch queries together or use UDP transport, which has no connection overhead.
 
 ---
 
 ## How the Pipeline Works
 
-When you call `Dns::builder()->build()`, the builder assembles an executor
-pipeline from the outside in. Each executor wraps the next and either handles
-the query itself or delegates to the inner executor. A query entering the top of
-the pipeline passes through each layer in order:
+When you call `Dns::builder()->build()`, the builder assembles an executor pipeline from the outside in. Each executor wraps the next and either handles the query itself or delegates to the inner executor. A query entering the top of the pipeline passes through each layer in order:
 ```
 resolveAll('example.com', A)
         │
@@ -711,18 +585,13 @@ resolveAll('example.com', A)
 └────────────────────────┘
 ```
 
-The `Resolver` class sits above this stack, translating the raw `Message`
-responses from the executor into the typed return values that `resolve()` and
-`resolveAll()` expose.
+The `Resolver` class sits above this stack, translating the raw `Message` responses from the executor into the typed return values that `resolve()` and `resolveAll()` expose.
 
 ---
 
 ## Executor Reference
 
-Each executor in the pipeline is available individually for custom pipelines. All
-implement `ExecutorInterface` and accept a `Query`, returning
-`PromiseInterface<Message>`. All returned promises support cancellation —
-cancelling propagates down through the wrapped executor chain automatically.
+Each executor in the pipeline is available individually for custom pipelines. All implement `ExecutorInterface` and accept a `Query`, returning `PromiseInterface<Message>`. All returned promises support cancellation. Cancelling propagates down through the wrapped executor chain automatically.
 
 | Executor | Purpose |
 |---|---|
@@ -730,14 +599,13 @@ cancelling propagates down through the wrapped executor chain automatically.
 | `TcpTransportExecutor` | Sends queries over TCP. Maintains a persistent connection per nameserver and multiplexes queries over it. Connection closes automatically after 50ms of idle time |
 | `SelectiveTransportExecutor` | Tries UDP first, falls back to TCP automatically if the response is truncated |
 | `TimeoutExecutor` | Wraps any executor and rejects with `TimeoutException` if the query exceeds the configured duration |
-| `RetryExecutor` | Retries a failed query up to N times before rejecting. Only retries on network-level failures — DNS protocol errors are not retried |
+| `RetryExecutor` | Retries a failed query up to N times before rejecting. Only retries on network-level failures. DNS protocol errors are not retried |
 | `FallbackExecutor` | Tries a primary executor, falls back to a secondary on failure |
-| `CoopExecutor` | Deduplicates concurrent identical queries — only one network request is made regardless of how many callers ask for the same name simultaneously. Cancellation is reference-counted: the network query is only cancelled when every caller has cancelled. All concurrent callers share the same retry budget |
+| `CoopExecutor` | Deduplicates concurrent identical queries. Only one network request is made regardless of how many callers ask for the same name simultaneously. Cancellation is reference-counted: the network query is only cancelled when every caller has cancelled. All concurrent callers share the same retry budget |
 | `CachingExecutor` | Caches successful responses using the minimum TTL from the answer records |
 | `HostsFileExecutor` | Checks a `HostsFile` instance before delegating to another executor. Supports A, AAAA, and PTR lookups |
 
-To assemble a custom pipeline, construct the executors from the inside out and
-wrap each one:
+To assemble a custom pipeline, construct the executors from the inside out and wrap each one:
 ```php
 use Hibla\Dns\Queries\UdpTransportExecutor;
 use Hibla\Dns\Queries\TcpTransportExecutor;
@@ -776,18 +644,16 @@ $resolver = new Resolver($executor);
 
 ## Exception Reference
 
-All exceptions extend `Hibla\Dns\Exceptions\DnsException`, which extends
-`\RuntimeException`. Catch the base class to handle any DNS error generically,
-or catch specific types for granular handling.
+All exceptions extend `Hibla\Dns\Exceptions\DnsException`, which extends `\RuntimeException`. Catch the base class to handle any DNS error generically, or catch specific types for granular handling.
 
 | Exception | When it is thrown |
 |---|---|
 | `RecordNotFoundException` | Base class for all "no record found" conditions. Catch this if you do not need to distinguish between NXDOMAIN and NODATA |
-| `NxDomainException` | The domain does not exist at all (NXDOMAIN / response code 3). Extends `RecordNotFoundException`. Retrying with a different record type will not help — the domain itself is absent |
-| `NoDataException` | The domain exists but has no records of the requested type (NOERROR / NODATA). Extends `RecordNotFoundException`. The domain is alive — it simply has no records of the type you queried |
+| `NxDomainException` | The domain does not exist at all (NXDOMAIN / response code 3). Extends `RecordNotFoundException`. Retrying with a different record type will not help, as the domain itself is absent |
+| `NoDataException` | The domain exists but has no records of the requested type (NOERROR / NODATA). Extends `RecordNotFoundException`. The domain is alive but simply has no records of the type you queried |
 | `QueryFailedException` | A network or protocol error prevented the query from completing |
 | `TimeoutException` | The query exceeded the configured timeout. Extends `QueryFailedException` |
-| `ResponseTruncatedException` | The UDP response was truncated. Handled internally by `SelectiveTransportExecutor` — you will not normally see this unless using `UdpTransportExecutor` directly. Extends `QueryFailedException` |
+| `ResponseTruncatedException` | The UDP response was truncated. Handled internally by `SelectiveTransportExecutor`, so you will not normally see this unless using `UdpTransportExecutor` directly. Extends `QueryFailedException` |
 
 The exception hierarchy:
 ```
@@ -839,8 +705,7 @@ try {
 
 ## Record Type Reference
 
-The `RecordType` enum lists all supported DNS record types. Pass any of these to
-`resolveAll()` as the second argument.
+The `RecordType` enum lists all supported DNS record types. Pass any of these to `resolveAll()` as the second argument.
 
 | Value | Name | Description | RFC |
 |---|---|---|---|
@@ -873,17 +738,10 @@ composer install
 
 ## Credits
 
-- **API Design:** Inspired by [ReactPHP DNS](https://github.com/reactphp/dns).
-  If you are familiar with ReactPHP's DNS resolver, the executor pipeline concept
-  and the `resolve()`/`resolveAll()` interface will feel immediately familiar —
-  with the addition of native promise cancellation and Fiber-aware async
-  throughout.
-- **Event Loop Integration:** Powered by
-  [hiblaphp/event-loop](https://github.com/hiblaphp/event-loop).
-- **Promise Integration:** Built on
-  [hiblaphp/promise](https://github.com/hiblaphp/promise).
-- **Stream Integration:** Built on
-  [hiblaphp/stream](https://github.com/hiblaphp/stream).
+- **API Design:** Inspired by [ReactPHP DNS](https://github.com/reactphp/dns). If you are familiar with ReactPHP's DNS resolver, the executor pipeline concept and the `resolve()`/`resolveAll()` interface will feel immediately familiar, with the addition of native promise cancellation and Fiber-aware async throughout.
+- **Event Loop Integration:** Powered by [hiblaphp/event-loop](https://github.com/hiblaphp/event-loop).
+- **Promise Integration:** Built on [hiblaphp/promise](https://github.com/hiblaphp/promise).
+- **Stream Integration:** Built on [hiblaphp/stream](https://github.com/hiblaphp/stream).
 
 ---
 
