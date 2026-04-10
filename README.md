@@ -5,6 +5,8 @@
 `hiblaphp/dns` provides promise-based DNS resolution built on top of the Hibla event loop. Queries never block the thread. UDP and TCP transports are driven entirely by non-blocking I/O watchers. A composable executor pipeline handles caching, deduplication, retries, timeouts, transport fallback, and hosts file resolution out of the box.
 
 [![Latest Release](https://img.shields.io/github/release/hiblaphp/dns.svg?style=flat-square)](https://github.com/hiblaphp/dns/releases)
+[![Tests](https://github.com/hiblaphp/dns/actions/workflows/test.yml/badge.svg)](https://github.com/hiblaphp/dns/actions/workflows/test.yml)
+[![Total Downloads](https://img.shields.io/packagist/dt/hiblaphp/dns.svg?style=flat-square)](https://packagist.org/packages/hiblaphp/dns)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](./LICENSE)
 
 ---
