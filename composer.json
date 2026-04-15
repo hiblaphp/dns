@@ -16,10 +16,10 @@
     ],
     "require": {
         "php": "^8.4",
-        "hiblaphp/event-loop": "^1.0@alpha",
+        "hiblaphp/event-loop": "^1.0",
         "hiblaphp/promise": "^1.0",
-        "hiblaphp/cache": "^1.0@alpha",
-        "hiblaphp/stream": "^1.0@alpha",
+        "hiblaphp/cache": "^1.0",
+        "hiblaphp/stream": "^1.0",
         "laravel/pint": "^1.25"
     },
     "require-dev": {
@@ -43,7 +43,7 @@
             "pestphp/pest-plugin": true
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "alpha",
     "prefer-stable": true,
     "scripts": {
         "test": "./vendor/bin/pest",
