@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Hibla\Cache\Interfaces\CacheInterface;
 use Hibla\Dns\Enums\RecordClass;
 use Hibla\Dns\Enums\RecordType;
 use Hibla\Dns\Interfaces\ExecutorInterface;
@@ -10,8 +9,8 @@ use Hibla\Dns\Models\Message;
 use Hibla\Dns\Models\Query;
 use Hibla\Dns\Queries\CachingExecutor;
 use Hibla\EventLoop\Loop;
-use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
+use Tests\Helpers\MockCache;
 use Tests\Helpers\MockExecutor;
 
 describe('CachingExecutor', function () {
@@ -21,12 +20,8 @@ describe('CachingExecutor', function () {
     it('returns cached result immediately on Hit', function () use ($query, $cacheKey) {
         $cachedMsg = new Message();
 
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')
-            ->with($cacheKey)
-            ->once()
-            ->andReturn(Promise::resolved($cachedMsg))
-        ;
+        $cache = new MockCache();
+        $cache->primeWith($cacheKey, $cachedMsg);
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->never();
@@ -42,10 +37,7 @@ describe('CachingExecutor', function () {
 
     it('queries network and saves to cache on Miss', function () use ($query, $cacheKey) {
         $networkMsg = create_message_with_ttls(answerTtls: [300]);
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->with($cacheKey)->once()->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with($cacheKey, $networkMsg, 300.0)->once()->andReturn(Promise::resolved(true));
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->with($query)->once()->andReturn(Promise::resolved($networkMsg));
@@ -58,14 +50,14 @@ describe('CachingExecutor', function () {
 
         expect($promise->isFulfilled())->toBeTrue();
         expect($promise->value)->toBe($networkMsg);
+        expect($cache->wasSet)->toBeTrue();
+        expect($cache->lastSetKey)->toBe($cacheKey);
+        expect($cache->lastSetTtl)->toBe(300.0);
     });
 
-    it('calculates the minimum TTL from all records', function () use ($query, $cacheKey) {
+    it('calculates the minimum TTL from all records', function () use ($query) {
         $networkMsg = create_message_with_ttls(answerTtls: [300, 60, 3600]);
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with($cacheKey, $networkMsg, 60.0)->once();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
@@ -75,14 +67,13 @@ describe('CachingExecutor', function () {
 
         Loop::runOnce();
         Loop::runOnce();
+
+        expect($cache->lastSetTtl)->toBe(60.0);
     });
 
     it('does NOT cache truncated responses', function () use ($query) {
         $networkMsg = create_message_with_ttls(answerTtls: [300], truncated: true);
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->never();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
@@ -94,14 +85,13 @@ describe('CachingExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
+        expect($cache->wasSet)->toBeFalse();
     });
 
     it('continues to network if Cache throws an error (Fail Open)', function () use ($query) {
         $networkMsg = new Message();
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::rejected(new RuntimeException('Redis died')));
-        $cache->shouldReceive('set')->never();
+        $cache = new MockCache();
+        $cache->failGetWith(new RuntimeException('Redis died'));
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->once()->andReturn(Promise::resolved($networkMsg));
@@ -114,6 +104,7 @@ describe('CachingExecutor', function () {
 
         expect($promise->isFulfilled())->toBeTrue();
         expect($promise->value)->toBe($networkMsg);
+        expect($cache->wasSet)->toBeFalse();
     });
 
     it('cancels the Cache lookup if cancelled during Phase 1', function () use ($query) {
@@ -124,8 +115,8 @@ describe('CachingExecutor', function () {
             $wasCancelled = true;
         });
 
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn($pendingCachePromise);
+        $cache = new MockCache();
+        $cache->overrideGetPromise($pendingCachePromise);
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->never();
@@ -139,9 +130,7 @@ describe('CachingExecutor', function () {
     });
 
     it('cancels the Network query if cancelled during Phase 2', function () use ($query) {
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-
+        $cache = new MockCache();
         $mockExecutor = new MockExecutor(shouldHang: true);
 
         $executor = new CachingExecutor($cache, $mockExecutor);
@@ -155,10 +144,7 @@ describe('CachingExecutor', function () {
 
     it('uses default TTL when message has no answers or authority records', function () use ($query, $cacheKey) {
         $networkMsg = new Message();
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with($cacheKey, $networkMsg, 60.0)->once();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
@@ -168,14 +154,14 @@ describe('CachingExecutor', function () {
 
         Loop::runOnce();
         Loop::runOnce();
+
+        expect($cache->wasSet)->toBeTrue();
+        expect($cache->lastSetTtl)->toBe(60.0);
     });
 
-    it('handles TTL of 0 correctly (immediate expiration)', function () use ($query, $cacheKey) {
+    it('handles TTL of 0 correctly (immediate expiration)', function () use ($query) {
         $networkMsg = create_message_with_ttls(answerTtls: [0]);
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with($cacheKey, $networkMsg, 0.0)->once();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
@@ -185,14 +171,13 @@ describe('CachingExecutor', function () {
 
         Loop::runOnce();
         Loop::runOnce();
+
+        expect($cache->lastSetTtl)->toBe(0.0);
     });
 
-    it('handles very large TTL values', function () use ($query, $cacheKey) {
+    it('handles very large TTL values', function () use ($query) {
         $networkMsg = create_message_with_ttls(answerTtls: [2147483647]);
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with($cacheKey, $networkMsg, 2147483647.0)->once();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
@@ -202,17 +187,16 @@ describe('CachingExecutor', function () {
 
         Loop::runOnce();
         Loop::runOnce();
+
+        expect($cache->lastSetTtl)->toBe(2147483647.0);
     });
 
-    it('finds minimum TTL across answers and authority sections', function () use ($query, $cacheKey) {
+    it('finds minimum TTL across answers and authority sections', function () use ($query) {
         $networkMsg = create_message_with_ttls(
             answerTtls: [500, 1000],
             authorityTtls: [100, 800]
         );
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with($cacheKey, $networkMsg, 100.0)->once();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
@@ -222,14 +206,13 @@ describe('CachingExecutor', function () {
 
         Loop::runOnce();
         Loop::runOnce();
+
+        expect($cache->lastSetTtl)->toBe(100.0);
     });
 
     it('propagates network query errors to the caller', function () use ($query) {
         $networkError = new RuntimeException('Network timeout');
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->never();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::rejected($networkError));
@@ -242,14 +225,12 @@ describe('CachingExecutor', function () {
 
         expect($promise->isRejected())->toBeTrue();
         expect($promise->reason)->toBe($networkError);
+        expect($cache->wasSet)->toBeFalse();
     });
 
     it('handles multiple concurrent queries for the same domain independently', function () use ($query) {
         $networkMsg = create_message_with_ttls(answerTtls: [300]);
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->twice()->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->twice()->andReturn(Promise::resolved(true));
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->twice()->andReturn(Promise::resolved($networkMsg));
@@ -272,11 +253,7 @@ describe('CachingExecutor', function () {
         $msgA = create_message_with_ttls(answerTtls: [300]);
         $msgAAAA = create_message_with_ttls(answerTtls: [400]);
 
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->with('example.com:1:1')->once()->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('get')->with('example.com:28:1')->once()->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with('example.com:1:1', $msgA, 300.0)->once();
-        $cache->shouldReceive('set')->with('example.com:28:1', $msgAAAA, 400.0)->once();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->with($queryA)->once()->andReturn(Promise::resolved($msgA));
@@ -288,6 +265,8 @@ describe('CachingExecutor', function () {
 
         Loop::runOnce();
         Loop::runOnce();
+
+        expect($cache->wasSet)->toBeTrue();
     });
 
     it('generates different cache keys for different query classes', function () {
@@ -297,11 +276,7 @@ describe('CachingExecutor', function () {
         $msgIN = create_message_with_ttls(answerTtls: [300]);
         $msgCH = create_message_with_ttls(answerTtls: [400]);
 
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->with('example.com:1:1')->once()->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('get')->with('example.com:1:3')->once()->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with('example.com:1:1', $msgIN, 300.0)->once();
-        $cache->shouldReceive('set')->with('example.com:1:3', $msgCH, 400.0)->once();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->with($queryIN)->once()->andReturn(Promise::resolved($msgIN));
@@ -313,16 +288,14 @@ describe('CachingExecutor', function () {
 
         Loop::runOnce();
         Loop::runOnce();
+
+        expect($cache->wasSet)->toBeTrue();
     });
 
     it('does not cache when cache set operation fails', function () use ($query) {
         $networkMsg = create_message_with_ttls(answerTtls: [300]);
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->andReturn(           
-            Promise::rejected(new RuntimeException('Cache write failed'))
-        );
+        $cache = new MockCache();
+        $cache->failSetWith(new RuntimeException('Cache write failed'));
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
@@ -342,9 +315,7 @@ describe('CachingExecutor', function () {
         $expectedKey = 'ex-ample.sub_domain.com:1:1';
         $networkMsg = create_message_with_ttls(answerTtls: [300]);
 
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->with($expectedKey)->once()->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with($expectedKey, $networkMsg, 300.0)->once();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
@@ -354,6 +325,8 @@ describe('CachingExecutor', function () {
 
         Loop::runOnce();
         Loop::runOnce();
+
+        expect($cache->lastSetKey)->toBe($expectedKey);
     });
 
     it('handles internationalized domain names (IDN)', function () {
@@ -361,9 +334,7 @@ describe('CachingExecutor', function () {
         $expectedKey = 'münchen.de:1:1';
         $networkMsg = create_message_with_ttls(answerTtls: [300]);
 
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->with($expectedKey)->once()->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with($expectedKey, $networkMsg, 300.0)->once();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
@@ -373,17 +344,16 @@ describe('CachingExecutor', function () {
 
         Loop::runOnce();
         Loop::runOnce();
+
+        expect($cache->lastSetKey)->toBe($expectedKey);
     });
 
-    it('does not crash when authority section has lower TTL than answers', function () use ($query, $cacheKey) {
+    it('does not crash when authority section has lower TTL than answers', function () use ($query) {
         $networkMsg = create_message_with_ttls(
             answerTtls: [1000, 2000],
             authorityTtls: [50, 100]
         );
-
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-        $cache->shouldReceive('set')->with($cacheKey, $networkMsg, 50.0)->once();
+        $cache = new MockCache();
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
@@ -395,15 +365,15 @@ describe('CachingExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
+        expect($cache->lastSetTtl)->toBe(50.0);
     });
 
     it('handles cache returning cached result after network already started', function () use ($query) {
-        $slowCachePromise = new Promise();
+        $pendingCachePromise = new Promise();
         $cachedMsg = new Message();
 
-        $cache = Mockery::mock(CacheInterface::class);
-        $cache->shouldReceive('get')->andReturn($slowCachePromise);
-        $cache->shouldReceive('set')->never();
+        $cache = new MockCache();
+        $cache->overrideGetPromise($pendingCachePromise);
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->never();
@@ -411,23 +381,20 @@ describe('CachingExecutor', function () {
         $executor = new CachingExecutor($cache, $inner);
         $promise = $executor->query($query);
 
-        $slowCachePromise->resolve($cachedMsg);
+        $pendingCachePromise->resolve($cachedMsg);
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
         expect($promise->value)->toBe($cachedMsg);
+        expect($cache->wasSet)->toBeFalse();
     });
 
     it('continues to work after cache fails then recovers', function () use ($query) {
         $networkMsg1 = create_message_with_ttls(answerTtls: [300]);
         $networkMsg2 = create_message_with_ttls(answerTtls: [400]);
 
-        $cache = Mockery::mock(CacheInterface::class);
-
-        $cache->shouldReceive('get')
-            ->once()
-            ->andReturn(Promise::rejected(new RuntimeException('Cache down')))
-        ;
+        $cache = new MockCache();
+        $cache->failGetWith(new RuntimeException('Cache down'));
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->once()->andReturn(Promise::resolved($networkMsg1));
@@ -440,12 +407,7 @@ describe('CachingExecutor', function () {
 
         expect($promise1->isFulfilled())->toBeTrue();
 
-        $cache->shouldReceive('get')
-            ->once()
-            ->andReturn(Promise::resolved(null))
-        ;
-        $cache->shouldReceive('set')->once()->andReturn(Promise::resolved(true));
-
+        $cache->recoverGet();
         $inner->shouldReceive('query')->once()->andReturn(Promise::resolved($networkMsg2));
 
         $promise2 = $executor->query($query);

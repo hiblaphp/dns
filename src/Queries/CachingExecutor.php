@@ -27,8 +27,7 @@ final class CachingExecutor implements ExecutorInterface
     public function __construct(
         private readonly CacheInterface $cache,
         private readonly ExecutorInterface $executor
-    ) {
-    }
+    ) {}
 
     /**
      * {@inheritdoc}
@@ -87,7 +86,12 @@ final class CachingExecutor implements ExecutorInterface
             onFulfilled: function (Message $response) use ($promise, $key, $cacheError): void {
                 if (! $cacheError && ! $response->isTruncated) {
                     $ttl = $this->calculateTtl($response);
-                    $this->cache->set($key, $response, (float) $ttl);
+                    $this->cache->set($key, $response, (float) $ttl)->then(
+                        null,
+                        function (\Throwable $e): void {
+                            // Cache write failed — ignore and let the network result through
+                        }
+                    );
                 }
                 $promise->resolve($response);
             },
