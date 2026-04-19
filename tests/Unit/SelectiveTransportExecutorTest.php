@@ -26,7 +26,7 @@ describe('SelectiveTransportExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue())->toBe($successMessage);
+        expect($promise->value)->toBe($successMessage);
         expect($tcp->wasCalled)->toBeFalse();
     });
 
@@ -43,7 +43,7 @@ describe('SelectiveTransportExecutor', function () {
         expect($udp->wasCalled)->toBeTrue();
         expect($tcp->wasCalled)->toBeTrue();
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue())->toBe($successMessage);
+        expect($promise->value)->toBe($successMessage);
     });
 
     it('fails if UDP fails with a standard error (no failover)', function () use ($query) {

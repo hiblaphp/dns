@@ -130,7 +130,7 @@ describe('TcpStreamHandler', function () {
         Loop::run();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->id)->toBe(1);
+        expect($promise->value->id)->toBe(1);
     });
 
     it('handles multiple packets in one chunk (Multiplexing)', function () use (&$resources, &$handlers, $dumper, $parser) {
@@ -286,7 +286,7 @@ describe('TcpStreamHandler', function () {
         Loop::run();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->id)->toBe(1);
+        expect($promise->value->id)->toBe(1);
     });
 
     it('handles multiple fragmented packets in sequence', function () use (&$resources, &$handlers, $dumper, $parser) {
@@ -328,9 +328,9 @@ describe('TcpStreamHandler', function () {
         expect($p1->isFulfilled())->toBeTrue();
         expect($p2->isFulfilled())->toBeTrue();
         expect($p3->isFulfilled())->toBeTrue();
-        expect($p1->getValue()->id)->toBe(1);
-        expect($p2->getValue()->id)->toBe(2);
-        expect($p3->getValue()->id)->toBe(3);
+        expect($p1->value->id)->toBe(1);
+        expect($p2->value->id)->toBe(2);
+        expect($p3->value->id)->toBe(3);
     });
 
     it('ignores response for unknown transaction ID', function () use (&$resources, &$handlers, $dumper, $parser) {
@@ -364,7 +364,7 @@ describe('TcpStreamHandler', function () {
         Loop::run();
 
         expect($p1->isFulfilled())->toBeTrue();
-        expect($p1->getValue()->id)->toBe(10);
+        expect($p1->value->id)->toBe(10);
     });
 
     it('handles rapid successive sends', function () use (&$resources, &$handlers, $dumper, $parser) {
@@ -400,7 +400,7 @@ describe('TcpStreamHandler', function () {
 
         foreach ($promises as $id => $promise) {
             expect($promise->isFulfilled())->toBeTrue();
-            expect($promise->getValue()->id)->toBe($id);
+            expect($promise->value->id)->toBe($id);
         }
     });
 
@@ -484,9 +484,9 @@ describe('TcpStreamHandler', function () {
         expect($p1->isFulfilled())->toBeTrue();
         expect($p2->isFulfilled())->toBeTrue();
         expect($p3->isFulfilled())->toBeTrue();
-        expect($p1->getValue()->id)->toBe(10);
-        expect($p2->getValue()->id)->toBe(20);
-        expect($p3->getValue()->id)->toBe(30);
+        expect($p1->value->id)->toBe(10);
+        expect($p2->value->id)->toBe(20);
+        expect($p3->value->id)->toBe(30);
     });
 
     it('handles close during pending operations', function () use (&$resources, &$handlers, $parser) {
@@ -576,8 +576,8 @@ describe('TcpStreamHandler', function () {
         Loop::run();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->id)->toBe(1);
-        expect(count($promise->getValue()->answers))->toBe(50);
+        expect($promise->value->id)->toBe(1);
+        expect(count($promise->value->answers))->toBe(50);
     });
 
     it('does not close on idle when operations are pending', function () use (&$resources, &$handlers, $parser) {

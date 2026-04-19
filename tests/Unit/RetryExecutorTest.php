@@ -315,7 +315,7 @@ describe('RetryExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue())->toBe($msg);
+        expect($promise->value)->toBe($msg);
     });
 
     it('handles asynchronous rejection and retry', function () use ($query) {
@@ -339,7 +339,7 @@ describe('RetryExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue())->toBe($msg);
+        expect($promise->value)->toBe($msg);
     });
 
     it('preserves error message from final attempt', function () use ($query) {

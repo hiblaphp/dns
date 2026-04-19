@@ -37,7 +37,7 @@ describe('CachingExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue())->toBe($cachedMsg);
+        expect($promise->value)->toBe($cachedMsg);
     });
 
     it('queries network and saves to cache on Miss', function () use ($query, $cacheKey) {
@@ -57,7 +57,7 @@ describe('CachingExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue())->toBe($networkMsg);
+        expect($promise->value)->toBe($networkMsg);
     });
 
     it('calculates the minimum TTL from all records', function () use ($query, $cacheKey) {
@@ -113,7 +113,7 @@ describe('CachingExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue())->toBe($networkMsg);
+        expect($promise->value)->toBe($networkMsg);
     });
 
     it('cancels the Cache lookup if cancelled during Phase 1', function () use ($query) {
@@ -241,7 +241,7 @@ describe('CachingExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isRejected())->toBeTrue();
-        expect($promise->getReason())->toBe($networkError);
+        expect($promise->reason)->toBe($networkError);
     });
 
     it('handles multiple concurrent queries for the same domain independently', function () use ($query) {
@@ -345,7 +345,7 @@ describe('CachingExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue())->toBe($networkMsg);
+        expect($promise->value)->toBe($networkMsg);
     });
 
     it('handles domain names with special characters correctly', function () {
@@ -426,7 +426,7 @@ describe('CachingExecutor', function () {
         Loop::runOnce();
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue())->toBe($cachedMsg);
+        expect($promise->value)->toBe($cachedMsg);
     });
 
     it('continues to work after cache fails then recovers', function () use ($query) {

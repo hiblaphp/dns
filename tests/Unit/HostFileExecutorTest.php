@@ -34,7 +34,7 @@ describe('HostsFileExecutor', function () {
 
         expect($promise->isFulfilled())->toBeTrue();
 
-        $message = $promise->getValue();
+        $message = $promise->value;
         expect($message->answers)->toHaveCount(2);
 
         $ips = array_map(fn ($r) => $r->data, $message->answers);
@@ -53,7 +53,7 @@ describe('HostsFileExecutor', function () {
 
         expect($promise->isFulfilled())->toBeTrue();
 
-        $message = $promise->getValue();
+        $message = $promise->value;
         expect($message->answers[0]->data)->toBe('::1');
 
         expect($fallback->wasCalled)->toBeFalse();
@@ -97,7 +97,7 @@ describe('HostsFileExecutor', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('dev.local');
+        expect($promise->value->answers[0]->data)->toBe('dev.local');
         expect($fallback->wasCalled)->toBeFalse();
     });
 
@@ -111,7 +111,7 @@ describe('HostsFileExecutor', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        $names = array_map(fn ($r) => $r->data, $promise->getValue()->answers);
+        $names = array_map(fn ($r) => $r->data, $promise->value->answers);
         expect($names)->toContain('localhost');
 
         expect($fallback->wasCalled)->toBeFalse();
@@ -134,7 +134,7 @@ describe('HostsFileExecutor', function () {
         $query = new Query('localhost', RecordType::A, RecordClass::IN);
         $promise = $executor->query($query);
 
-        $message = $promise->getValue();
+        $message = $promise->value;
         // Should find 127.0.0.1 AND 127.0.0.2
         expect($message->answers)->toHaveCount(2);
 
@@ -151,7 +151,7 @@ describe('HostsFileExecutor', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('192.168.1.10');
+        expect($promise->value->answers[0]->data)->toBe('192.168.1.10');
     });
 
     it('ignores queries with non-IN class', function () use ($hostsFile) {
@@ -179,7 +179,7 @@ describe('HostsFileExecutor', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('expanded.ipv6.local');
+        expect($promise->value->answers[0]->data)->toBe('expanded.ipv6.local');
     });
 
     it('propagates cancellation to fallback executor', function () use ($hostsFile) {
@@ -260,7 +260,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('192.168.1.10');
+        expect($promise->value->answers[0]->data)->toBe('192.168.1.10');
     });
 
     it('resolves hosts with multiple aliases', function () use ($hostsFile) {
@@ -271,7 +271,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('192.168.1.20');
+        expect($promise->value->answers[0]->data)->toBe('192.168.1.20');
     });
 
     it('resolves second alias correctly', function () use ($hostsFile) {
@@ -282,7 +282,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('192.168.1.20');
+        expect($promise->value->answers[0]->data)->toBe('192.168.1.20');
     });
 
     it('handles compressed IPv6 addresses (::)', function () use ($hostsFile) {
@@ -293,7 +293,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('::1');
+        expect($promise->value->answers[0]->data)->toBe('::1');
     });
 
     it('handles IPv6 with different compression formats', function () {
@@ -310,7 +310,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('2001:db8::1');
+        expect($promise->value->answers[0]->data)->toBe('2001:db8::1');
     });
 
     it('handles PTR query for localhost (127.0.0.1)', function () use ($hostsFile) {
@@ -321,7 +321,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        $hostnames = array_map(fn ($r) => $r->data, $promise->getValue()->answers);
+        $hostnames = array_map(fn ($r) => $r->data, $promise->value->answers);
         expect($hostnames)->toContain('localhost');
     });
 
@@ -381,7 +381,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('127.0.0.2');
+        expect($promise->value->answers[0]->data)->toBe('127.0.0.2');
     });
 
     it('handles private network IPs (10.x.x.x)', function () {
@@ -395,7 +395,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('10.0.0.1');
+        expect($promise->value->answers[0]->data)->toBe('10.0.0.1');
     });
 
     it('handles link-local IPv6 addresses', function () {
@@ -409,7 +409,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('fe80::1');
+        expect($promise->value->answers[0]->data)->toBe('fe80::1');
     });
 
     it('sets correct flags in response message', function () use ($hostsFile) {
@@ -419,7 +419,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $query = new Query('localhost', RecordType::A, RecordClass::IN);
         $promise = $executor->query($query);
 
-        $message = $promise->getValue();
+        $message = $promise->value;
         expect($message->isResponse)->toBeTrue();
         expect($message->isAuthoritative)->toBeTrue();
         expect($message->recursionAvailable)->toBeTrue();
@@ -433,7 +433,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $query = new Query('localhost', RecordType::A, RecordClass::IN);
         $promise = $executor->query($query);
 
-        $message = $promise->getValue();
+        $message = $promise->value;
         expect($message->questions)->toHaveCount(1);
         expect($message->questions[0]->name)->toBe('localhost');
         expect($message->questions[0]->type)->toBe(RecordType::A);
@@ -446,7 +446,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $query = new Query('localhost', RecordType::A, RecordClass::IN);
         $promise = $executor->query($query);
 
-        $message = $promise->getValue();
+        $message = $promise->value;
         foreach ($message->answers as $answer) {
             expect($answer->ttl)->toBe(0);
         }
@@ -493,7 +493,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('192.168.1.100');
+        expect($promise->value->answers[0]->data)->toBe('192.168.1.100');
     });
 
     it('does not match subdomains wildcard-style', function () use ($hostsFile) {
@@ -528,7 +528,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('192.168.1.200');
+        expect($promise->value->answers[0]->data)->toBe('192.168.1.200');
     });
 
     it('handles numeric-only hostnames', function () {
@@ -542,7 +542,7 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('192.168.1.250');
+        expect($promise->value->answers[0]->data)->toBe('192.168.1.250');
     });
 
     it('handles hostnames with hyphens', function () {
@@ -556,6 +556,6 @@ describe('HostsFileExecutor - Edge Cases', function () {
         $promise = $executor->query($query);
 
         expect($promise->isFulfilled())->toBeTrue();
-        expect($promise->getValue()->answers[0]->data)->toBe('192.168.1.150');
+        expect($promise->value->answers[0]->data)->toBe('192.168.1.150');
     });
 });
