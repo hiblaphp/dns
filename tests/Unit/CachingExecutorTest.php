@@ -320,20 +320,9 @@ describe('CachingExecutor', function () {
 
         $cache = Mockery::mock(CacheInterface::class);
         $cache->shouldReceive('get')->andReturn(Promise::resolved(null));
-
-        $failedSetPromise = Mockery::mock(PromiseInterface::class);
-        $failedSetPromise->shouldReceive('then')
-            ->with(null, Mockery::type('Closure'))
-            ->andReturnUsing(function ($onFulfilled, $onRejected) {
-                if ($onRejected) {
-                    $onRejected(new RuntimeException('Cache write failed'));
-                }
-
-                return $this;
-            })
-        ;
-
-        $cache->shouldReceive('set')->andReturn($failedSetPromise);
+        $cache->shouldReceive('set')->andReturn(           
+            Promise::rejected(new RuntimeException('Cache write failed'))
+        );
 
         $inner = Mockery::mock(ExecutorInterface::class);
         $inner->shouldReceive('query')->andReturn(Promise::resolved($networkMsg));
